@@ -1,0 +1,21 @@
+{
+  "short_name": "CryptoBot5007",
+  "name": "Crypto Trading Bot Platform Port 5007",
+  "icons": [
+    {
+      "src": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4b8.png",
+      "type": "image/png",
+      "sizes": "72x72"
+    },
+    {
+      "src": "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4b8.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "display": "standalone",
+  "orientation": "portrait"
+}

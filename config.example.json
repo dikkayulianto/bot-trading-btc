@@ -1,0 +1,28 @@
+﻿{
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT"
+  ],
+  "timeframe": "5m",
+  "paper_trading": true,
+  "exchange_name": "KuCoin / Indodax",
+  "trade_amount_usdt": 100.0,
+  "sl_percent": 1.5,
+  "tp_percent": 3.0,
+  "ema_fast": 9,
+  "ema_slow": 21,
+  "rsi_period": 14,
+  "loop_interval_seconds": 15,
+  "min_confidence": 70,
+  "groq_api_key": "YOUR_GROQ_API_KEY_HERE",
+  "gemini_api_key": "YOUR_GEMINI_API_KEY_HERE",
+  "allowed_account_numbers": [
+    110495697,
+    888999000
+  ],
+  "license_expire_date": "2026-12-31",
+  "license_key": "LIC-CRYPTOBOT-2026-ACTIVE"
+}
