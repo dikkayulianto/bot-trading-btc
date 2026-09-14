@@ -140,6 +140,31 @@ async function fetchStatus() {
             renderPositions(data.account.positions || []);
         }
 
+        // 3b. Indodax Real Account Status
+        const indodaxStatusElem = document.getElementById('indodax-acc-status');
+        const indodaxBalElem = document.getElementById('indodax-idr-bal');
+        const modeBadge = document.getElementById('trading-mode-badge');
+        
+        if (data.indodax_account && data.indodax_account.status === 'success') {
+            const acc = data.indodax_account;
+            if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-emerald"><i class="bi bi-check-circle-fill me-1"></i>Terhubung (UID: ${acc.uid})</span>`;
+            if (indodaxBalElem) indodaxBalElem.innerText = `Saldo: Rp ${Number(acc.idr_balance || 0).toLocaleString('id-ID')}`;
+        } else {
+            if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-secondary"><i class="bi bi-exclamation-circle me-1"></i>Belum Terhubung</span>`;
+            if (indodaxBalElem) indodaxBalElem.innerText = '';
+        }
+
+        if (modeBadge) {
+            const mode = data.config ? (data.config.trading_mode || 'paper') : 'paper';
+            if (mode === 'live_indodax') {
+                modeBadge.className = 'badge bg-danger-subtle text-rose border border-danger';
+                modeBadge.innerHTML = '<span class="spinner-grow spinner-grow-sm me-1 text-danger"></span> Live Indodax (Real)';
+            } else {
+                modeBadge.className = 'badge bg-success-subtle text-emerald border border-success';
+                modeBadge.innerHTML = '<i class="bi bi-shield-check me-1"></i> Paper Trading Mode';
+            }
+        }
+
         // 4. Render Active Coin Pills
         if (data.config && data.config.symbols) {
             renderCoinPills(data.config.symbols);
@@ -172,6 +197,16 @@ async function fetchStatus() {
         // 6. Config Values
         if (data.config) {
             const cfg = data.config;
+            if (document.getElementById('cfg-indodax-key') && !document.getElementById('cfg-indodax-key').value) {
+                document.getElementById('cfg-indodax-key').value = cfg.indodax_api_key || '';
+            }
+            if (document.getElementById('cfg-indodax-secret') && !document.getElementById('cfg-indodax-secret').value) {
+                document.getElementById('cfg-indodax-secret').value = cfg.indodax_secret_key || '';
+            }
+            if (document.getElementById('cfg-trading-mode') && !document.getElementById('cfg-trading-mode').getAttribute('data-loaded')) {
+                document.getElementById('cfg-trading-mode').value = cfg.trading_mode || 'paper';
+                document.getElementById('cfg-trading-mode').setAttribute('data-loaded', 'true');
+            }
             if (document.getElementById('cfg-groq-key') && !document.getElementById('cfg-groq-key').value) {
                 document.getElementById('cfg-groq-key').value = cfg.groq_api_key || '';
             }
@@ -340,6 +375,9 @@ async function stopBot() {
 
 async function saveConfig(e) {
     e.preventDefault();
+    const indodaxKey = document.getElementById('cfg-indodax-key') ? document.getElementById('cfg-indodax-key').value.trim() : '';
+    const indodaxSecret = document.getElementById('cfg-indodax-secret') ? document.getElementById('cfg-indodax-secret').value.trim() : '';
+    const tradingMode = document.getElementById('cfg-trading-mode') ? document.getElementById('cfg-trading-mode').value : 'paper';
     const groqKey = document.getElementById('cfg-groq-key').value;
     const timeframe = document.getElementById('cfg-timeframe').value;
     const symbolsRaw = document.getElementById('cfg-symbols').value;
@@ -349,6 +387,9 @@ async function saveConfig(e) {
     const symbols = symbolsRaw.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
 
     const payload = {
+        indodax_api_key: indodaxKey,
+        indodax_secret_key: indodaxSecret,
+        trading_mode: tradingMode,
         groq_api_key: groqKey,
         timeframe: timeframe,
         symbols: symbols,
@@ -368,6 +409,42 @@ async function saveConfig(e) {
         fetchStatus();
     } catch (err) {
         alert('Gagal menyimpan konfigurasi: ' + err);
+    }
+}
+
+async function testIndodaxConnection() {
+    const key = document.getElementById('cfg-indodax-key') ? document.getElementById('cfg-indodax-key').value.trim() : '';
+    const secret = document.getElementById('cfg-indodax-secret') ? document.getElementById('cfg-indodax-secret').value.trim() : '';
+    const alertBox = document.getElementById('indodax-test-alert');
+    const msgBox = document.getElementById('indodax-test-msg');
+
+    if (alertBox) alertBox.classList.remove('d-none');
+    if (msgBox) msgBox.innerHTML = '<span class="spinner-border spinner-border-sm text-warning me-1"></span> Menguji koneksi ke Indodax Trade API 2.0...';
+
+    try {
+        const res = await fetch('/api/indodax/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: key, secret_key: secret })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            const nonZero = (data.balances || []).map(b => `<strong>${b.asset}</strong>: ${b.free}`).join(', ');
+            alertBox.className = 'alert alert-success border-success p-2 mb-3 small';
+            msgBox.innerHTML = `
+                <div class="fw-bold text-success mb-1"><i class="bi bi-check-circle-fill me-1"></i>Koneksi Indodax Berhasil!</div>
+                <div>UID: <strong>${data.uid}</strong> | Tipe: ${data.accountType} | Spot Trading: <strong>${data.canTrade ? 'Aktif' : 'Non-Aktif'}</strong></div>
+                <div class="mt-1 text-light">Saldo IDR: <strong class="text-emerald">Rp ${Number(data.idr_balance || 0).toLocaleString('id-ID')}</strong></div>
+                <div class="text-muted mt-1" style="font-size: 0.72rem;">Aset Kripto Terdeteksi: ${nonZero || 'Tidak ada koin lain'}</div>
+            `;
+            fetchStatus();
+        } else {
+            alertBox.className = 'alert alert-danger border-danger p-2 mb-3 small';
+            msgBox.innerHTML = `<div class="fw-bold text-danger mb-1"><i class="bi bi-x-circle-fill me-1"></i>Gagal Terhubung ke Indodax</div><div>${data.message || JSON.stringify(data)}</div>`;
+        }
+    } catch (err) {
+        if (alertBox) alertBox.className = 'alert alert-danger border-danger p-2 mb-3 small';
+        if (msgBox) msgBox.innerHTML = `<strong>Error Request:</strong> ${err}`;
     }
 }
 

@@ -77,15 +77,20 @@
             <div class="col-6 col-lg-3">
                 <div class="kpi-card">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="kpi-icon bg-warning-subtle text-warning border border-warning">
-                            <i class="bi bi-cpu"></i>
+                        <div class="kpi-icon bg-warning-subtle text-warning border border-warning" id="indodax-kpi-icon">
+                            <i class="bi bi-wallet2 text-warning"></i>
                         </div>
                         <div>
-                            <div class="kpi-label">EXCHANGE REST CLIENT</div>
-                            <div class="fw-bold text-light" style="font-size: 0.95rem;">KuCoin / Indodax / Bybit</div>
-                            <span class="badge bg-warning-subtle text-warning border border-warning mt-1" style="font-size: 0.7rem; font-weight: 700;">
-                                <i class="bi bi-journal-code me-1"></i> Paper Trading Mode
-                            </span>
+                            <div class="kpi-label">INDODAX TRADE API V2</div>
+                            <div class="fw-bold text-light" id="indodax-acc-status" style="font-size: 0.92rem;">
+                                <span class="text-secondary font-normal">Memeriksa akun...</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+                                <span class="badge bg-warning-subtle text-warning border border-warning" id="trading-mode-badge" style="font-size: 0.7rem; font-weight: 700;">
+                                    <i class="bi bi-journal-code me-1"></i> Paper Trading Mode
+                                </span>
+                                <span id="indodax-idr-bal" class="small font-mono text-emerald" style="font-size: 0.72rem;"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -343,9 +348,32 @@
                         <div class="tab-pane fade" id="config-pane" role="tabpanel" style="display: none;">
                             <form id="config-form" onsubmit="saveConfig(event)">
                                 <div class="row g-3 mb-3">
+                                    <div class="col-md-5">
+                                        <label class="form-label text-warning"><i class="bi bi-key me-1"></i>Indodax API Key (V2)</label>
+                                        <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-indodax-key" placeholder="46IBGDGA-...">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label text-warning"><i class="bi bi-shield-lock me-1"></i>Indodax Secret Key (V2)</label>
+                                        <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-indodax-secret" placeholder="ebc77ed...">
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-warning btn-sm w-100 rounded-3 py-1" onclick="testIndodaxConnection()">
+                                            <i class="bi bi-plug me-1"></i> Tes Akun
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="indodax-test-alert" class="alert alert-dark border-secondary p-2 mb-3 d-none small">
+                                    <div id="indodax-test-msg"></div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
                                     <div class="col-md-6">
-                                        <label class="form-label">Groq API Key</label>
-                                        <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-groq-key" placeholder="gsk_...">
+                                        <label class="form-label text-info"><i class="bi bi-toggles me-1"></i>Mode Eksekusi Trading</label>
+                                        <select class="form-select form-select-sm bg-dark text-light border-info rounded-3" id="cfg-trading-mode">
+                                            <option value="paper" selected>Paper Trading (Simulasi Virtual $10.000 USDT) [Aman]</option>
+                                            <option value="live_indodax">Live Indodax Trading (Order Riil Akun Indodax)</option>
+                                        </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Timeframe Analisis</label>
@@ -360,14 +388,21 @@
 
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
+                                        <label class="form-label">Groq AI API Key</label>
+                                        <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-groq-key" placeholder="gsk_...">
+                                    </div>
+                                    <div class="col-md-6">
                                         <label class="form-label">Active Symbols (Koma Pisah)</label>
                                         <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-symbols" value="BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT">
                                     </div>
-                                    <div class="col-md-3">
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
                                         <label class="form-label">Max Posisi Serentak</label>
                                         <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-max-positions" value="2" min="1" max="5">
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-6">
                                         <label class="form-label">Loop Interval (Detik)</label>
                                         <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-interval" value="15" min="5">
                                     </div>

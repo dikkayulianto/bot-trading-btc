@@ -3,8 +3,20 @@ import ssl
 import json
 import logging
 import time
+import socket
+import hmac
+import hashlib
+import requests
 import pandas as pd
 import numpy as np
+
+# Ensure IPv4 resolution for api.indodax.com to match whitelisted IPv4 address
+_orig_getaddrinfo = socket.getaddrinfo
+def _ipv4_indodax_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if host == "api.indodax.com":
+        return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+socket.getaddrinfo = _ipv4_indodax_getaddrinfo
 
 # Configure SSL context bypass for Windows Python HTTPS requests
 ssl_ctx = ssl.create_default_context()
@@ -25,6 +37,7 @@ paper_portfolio = {
 # Real-time data caching (TTL in seconds)
 _ticker_cache = {}
 _kline_cache = {}
+_indodax_account_cache = {}
 TICKER_CACHE_TTL = 3.0
 KLINE_CACHE_TTL = 6.0
 
@@ -264,3 +277,118 @@ def close_all_paper_positions():
     paper_portfolio["positions"] = []
     logging.info(f"[PAPER TRADING] Closed all {total_closed} paper positions.")
     return total_closed
+
+# ============================================================
+# INDODAX TRADE API 2.0 CONNECTOR
+# ============================================================
+
+def get_indodax_account_info(api_key, secret_key):
+    """
+    Fetches real account info and balances from Indodax Trade API 2.0 (GET /api/v2/account).
+    """
+    if not api_key or not secret_key:
+        return {"status": "unconfigured", "message": "Indodax API Key belum diatur."}
+
+    now = time.time()
+    if _indodax_account_cache.get("timestamp") and (now - _indodax_account_cache["timestamp"] < 4.0):
+        return _indodax_account_cache["data"]
+
+    try:
+        ts = int(now * 1000)
+        query = f"omitZeroBalances=true&recvWindow=10000&timestamp={ts}"
+        sig = hmac.new(secret_key.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
+        url = f"https://api.indodax.com/api/v2/account?{query}"
+        headers = {
+            "Accept": "application/json",
+            "X-APIKEY": api_key,
+            "Sign": sig,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            balances = data.get("balances", [])
+            idr_balance = 0.0
+            for b in balances:
+                if b.get("asset") == "IDR":
+                    idr_balance = float(b.get("free", 0.0))
+                    break
+            result = {
+                "status": "success",
+                "uid": data.get("uid"),
+                "canTrade": data.get("canTrade", False),
+                "canWithdraw": data.get("canWithdraw", False),
+                "accountType": data.get("accountType", "individual"),
+                "balances": balances,
+                "idr_balance": idr_balance
+            }
+            _indodax_account_cache["data"] = result
+            _indodax_account_cache["timestamp"] = now
+            return result
+        else:
+            return {
+                "status": "error",
+                "code": resp.status_code,
+                "message": resp.text
+            }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+def execute_indodax_order(symbol, side, price, quantity, order_type="LIMIT", api_key=None, secret_key=None):
+    """
+    Executes a real Spot Order on Indodax Trade API 2.0 (POST /api/v2/order).
+    """
+    if not api_key or not secret_key:
+        return {"status": "error", "message": "Indodax API Key dan Secret Key diperlukan."}
+
+    # Format pair to Indodax format (e.g. BTCUSDT -> btcidr or btcusdt)
+    sym = symbol.lower().replace("/", "").replace("-", "")
+    if sym.endswith("usdt"):
+        pair_sym = sym
+    elif sym.endswith("idr"):
+        pair_sym = sym
+    else:
+        pair_sym = f"{sym}idr"
+
+    ts = int(time.time() * 1000)
+    params = {
+        "symbol": pair_sym,
+        "side": side.upper(),
+        "type": order_type.upper(),
+        "timestamp": ts,
+        "recvWindow": 10000
+    }
+    if order_type.upper() == "LIMIT":
+        params["price"] = str(price)
+        params["quantity"] = str(quantity)
+    elif order_type.upper() == "MARKET":
+        if side.upper() == "BUY":
+            params["quoteOrderQty"] = str(int(price * quantity))
+        else:
+            params["quantity"] = str(quantity)
+
+    body_str = urllib.parse.urlencode(params)
+    sig = hmac.new(secret_key.encode("utf-8"), body_str.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    url = "https://api.indodax.com/api/v2/order"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-APIKEY": api_key,
+        "Sign": sig,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
+    }
+
+    try:
+        resp = requests.post(url, data=body_str, headers=headers, timeout=10)
+        res_data = resp.json()
+        if resp.status_code == 200 and not res_data.get("code"):
+            logging.info(f"[INDODAX LIVE ORDER] Sukses {side.upper()} {pair_sym}: {res_data}")
+            return {"status": "success", "data": res_data}
+        else:
+            logging.error(f"[INDODAX LIVE ORDER ERROR] {pair_sym}: {res_data}")
+            return {"status": "error", "data": res_data}
+    except Exception as e:
+        logging.error(f"[INDODAX ORDER EXCEPTION] {e}")
+        return {"status": "error", "message": str(e)}
+

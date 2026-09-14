@@ -55,11 +55,20 @@ def api_status():
     # Strictly get latest AI for current symbol
     ai_for_symbol = latest_ai_map.get(current_symbol, {})
 
+    # Indodax Real Account info if configured
+    indodax_status = {}
+    if config.get("indodax_api_key") and config.get("indodax_secret_key"):
+        indodax_status = exchange_api.get_indodax_account_info(
+            config.get("indodax_api_key"),
+            config.get("indodax_secret_key")
+        )
+
     return jsonify({
         "bot_running": bot.bot_running,
         "license_valid": is_valid,
         "license_message": msg,
         "account": paper_status,
+        "indodax_account": indodax_status,
         "config": config,
         "selected_symbol": current_symbol,
         "logs": list(bot.log_history),
@@ -111,6 +120,15 @@ def api_ai_analysis():
     res = bot.run_ai_crypto_analysis(symbol, timeframe, cfg)
     if res.get("status") == "success":
         bot.save_latest_ai_results(res, symbol=symbol)
+    return jsonify(res)
+
+@app.route("/api/indodax/test", methods=["POST"])
+def api_indodax_test():
+    data = request.json or {}
+    cfg = bot.load_config()
+    api_key = data.get("api_key") or cfg.get("indodax_api_key")
+    secret_key = data.get("secret_key") or cfg.get("indodax_secret_key")
+    res = exchange_api.get_indodax_account_info(api_key, secret_key)
     return jsonify(res)
 
 @app.route("/api/gainzalgo-v2", methods=["GET"])

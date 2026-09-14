@@ -256,8 +256,31 @@ def bot_trading_cycle():
             # and ensure only 1 trade per candle bar timeframe
             if sig in ["BUY", "SELL"] and (is_fresh or conf >= min_confidence):
                 if last_trade_bar.get(symbol) != latest_candle_time:
-                    logging.info(f"[SIGNAL TRIGGER] {symbol} {sig} on {timeframe_str} (Conf: {conf}%, Entry: {entry}, TP: {tp}, SL: {sl})")
-                    exchange_api.execute_paper_order(symbol, sig, trade_amount, entry, sl, tp)
+                    trading_mode = config_data.get("trading_mode", "paper")
+                    logging.info(f"[SIGNAL TRIGGER] {symbol} {sig} on {timeframe_str} (Conf: {conf}%, Entry: {entry}, TP: {tp}, SL: {sl}) [Mode: {trading_mode}]")
+                    
+                    if trading_mode == "live_indodax":
+                        indodax_key = config_data.get("indodax_api_key")
+                        indodax_sec = config_data.get("indodax_secret_key")
+                        if indodax_key and indodax_sec:
+                            order_res = exchange_api.execute_indodax_order(
+                                symbol=symbol,
+                                side=sig,
+                                price=entry,
+                                quantity=trade_amount,
+                                order_type="LIMIT",
+                                api_key=indodax_key,
+                                secret_key=indodax_sec
+                            )
+                            if order_res.get("status") == "success":
+                                logging.info(f"[INDODAX REAL] Order {sig} #{order_res.get('data', {}).get('orderId')} sukses dikirim ke Indodax.")
+                            else:
+                                logging.error(f"[INDODAX REAL ERROR] Gagal mengirim order {sig} ke Indodax: {order_res.get('data') or order_res.get('message')}")
+                        else:
+                            logging.warning("[INDODAX] Mode Live dipilih namun API Key belum diisi. Order dilewati.")
+                    else:
+                        exchange_api.execute_paper_order(symbol, sig, trade_amount, entry, sl, tp)
+
                     last_trade_bar[symbol] = latest_candle_time
                     current_open += 1
 
