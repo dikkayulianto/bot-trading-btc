@@ -263,12 +263,28 @@ def bot_trading_cycle():
                         indodax_key = config_data.get("indodax_api_key")
                         indodax_sec = config_data.get("indodax_secret_key")
                         if indodax_key and indodax_sec:
+                            coin_code = symbol.upper().replace("USDT", "").replace("IDR", "").replace("-", "").replace("/", "")
+                            if sig == "SELL":
+                                acc_info = exchange_api.get_indodax_account_info(indodax_key, indodax_sec)
+                                coin_balance = 0.0
+                                for b in acc_info.get("balances", []):
+                                    if b.get("asset") == coin_code:
+                                        coin_balance = float(b.get("free", 0.0))
+                                        break
+                                if coin_balance <= 0.000001:
+                                    logging.info(f"[INDODAX SPOT] Sinyal SELL {coin_code} dilewati karena Anda belum memiliki saldo koin {coin_code}.")
+                                    last_trade_bar[symbol] = latest_candle_time
+                                    continue
+                                sell_qty = coin_balance
+                            else:
+                                sell_qty = 0
+
                             trade_idr = float(config_data.get("trade_amount_idr", 50000))
                             order_res = exchange_api.execute_indodax_order(
                                 symbol=symbol,
                                 side=sig,
                                 price=entry,
-                                quantity=trade_idr if sig == "BUY" else trade_amount,
+                                quantity=trade_idr if sig == "BUY" else sell_qty,
                                 order_type="MARKET",
                                 api_key=indodax_key,
                                 secret_key=indodax_sec
