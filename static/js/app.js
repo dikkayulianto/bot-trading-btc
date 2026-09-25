@@ -7,12 +7,21 @@ document.addEventListener('DOMContentLoaded', () => {
     pollTimer = setInterval(fetchStatus, 3000);
 });
 
+function getTradingViewSymbol(sym) {
+    if (!sym) return 'KUCOIN:BTCUSDT';
+    let clean = sym.toUpperCase().replace('/', '').replace('-', '').replace('KUCOIN:', '');
+    let coin = clean.replace('IDR', '').replace('USDT', '');
+    return 'KUCOIN:' + coin + 'USDT';
+}
+
 function selectCoin(sym) {
     selectedSymbol = sym.toUpperCase().replace('/', '').replace('-', '');
+    const tvSym = getTradingViewSymbol(selectedSymbol);
+    const baseCoin = selectedSymbol.replace('IDR', '').replace('USDT', '');
     
     // Update active coin pill UI
     document.querySelectorAll('.coin-pill').forEach(btn => {
-        if (btn.innerText.includes(selectedSymbol)) {
+        if (btn.innerText.includes(baseCoin)) {
             btn.classList.add('active');
         } else {
             btn.classList.remove('active');
@@ -22,10 +31,10 @@ function selectCoin(sym) {
     // Sync Chart Dropdown and TradingView Widget
     const chartSelect = document.getElementById('select-chart-symbol');
     if (chartSelect) {
-        chartSelect.value = 'KUCOIN:' + selectedSymbol;
-        if (typeof updateChartSymbol === 'function') {
-            updateChartSymbol('KUCOIN:' + selectedSymbol);
-        }
+        chartSelect.value = tvSym;
+    }
+    if (typeof updateChartSymbol === 'function') {
+        updateChartSymbol(tvSym);
     }
 
     // Immediately fetch updated HUD & AI for selected coin

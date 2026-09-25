@@ -261,10 +261,18 @@
                             <div id="tradingview_crypto_chart" style="height:100%;width:100%"></div>
                             <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
                             <script type="text/javascript">
+                                function getSafeChartSymbol(sym) {
+                                    if (!sym) return "KUCOIN:BTCUSDT";
+                                    let clean = sym.toUpperCase().replace("/", "").replace("-", "").replace("KUCOIN:", "");
+                                    let coin = clean.replace("IDR", "").replace("USDT", "");
+                                    return "KUCOIN:" + coin + "USDT";
+                                }
+
                                 function initTradingViewChart(symbolName) {
+                                    const safeSymbol = getSafeChartSymbol(symbolName);
                                     new TradingView.widget({
                                         "autosize": true,
-                                        "symbol": symbolName || "KUCOIN:BTCUSDT",
+                                        "symbol": safeSymbol,
                                         "interval": "5",
                                         "timezone": "Asia/Jakarta",
                                         "theme": "dark",
@@ -421,6 +429,6 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v={{ cache_bust or 2026092502 }}"></script>
 </body>
 </html>
