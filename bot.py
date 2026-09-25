@@ -275,6 +275,19 @@ def bot_trading_cycle():
                                     logging.info(f"[INDODAX SPOT] Sinyal SELL {coin_code} dilewati karena Anda belum memiliki saldo koin {coin_code}.")
                                     last_trade_bar[symbol] = latest_candle_time
                                     continue
+                                
+                                # Cek estimasi nilai koin dalam Rupiah untuk menghindari error minimum order Indodax (Rp 10.000)
+                                pair_sym = f"{coin_code}IDR"
+                                ticker_idr = exchange_api.get_ticker_price(pair_sym)
+                                live_price = float(ticker_idr.get("last_price", 0.0))
+                                if live_price <= 0:
+                                    live_price = float(entry) if entry > 1000 else float(entry) * 15500
+                                est_value_idr = coin_balance * live_price
+                                if est_value_idr < 10000:
+                                    logging.info(f"[INDODAX SPOT] Sinyal SELL {coin_code} dilewati karena saldo koin bernilai Rp {est_value_idr:,.0f} (di bawah minimum order Indodax Rp 10.000).")
+                                    last_trade_bar[symbol] = latest_candle_time
+                                    continue
+
                                 sell_qty = coin_balance
                             else:
                                 sell_qty = 0
