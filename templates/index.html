@@ -314,9 +314,14 @@
                                 </button>
                             </li>
                         </ul>
-                        <button id="btn-close-all" class="btn btn-sm btn-close-all-pro rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="closeAllPositions()">
-                            <i class="bi bi-x-circle me-1"></i> Tutup Semua Posisi
-                        </button>
+                        <div class="d-flex align-items-center gap-1">
+                            <button id="btn-sync-wallet" class="btn btn-sm btn-outline-info rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="syncWallet()" title="Sinkronkan koin yang ada di dompet Indodax ke tabel posisi bot">
+                                <i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Aset Indodax
+                            </button>
+                            <button id="btn-close-all" class="btn btn-sm btn-close-all-pro rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="closeAllPositions()">
+                                <i class="bi bi-x-circle me-1"></i> Tutup Semua Posisi
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body tab-content p-3" id="botTabsContent">
                         <!-- Tab 1: Positions Table -->

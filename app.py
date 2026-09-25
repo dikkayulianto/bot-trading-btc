@@ -139,6 +139,19 @@ def api_indodax_test():
     res = exchange_api.get_indodax_account_info(api_key, secret_key)
     return jsonify(res)
 
+@app.route("/api/indodax/sync-wallet", methods=["POST"])
+def api_indodax_sync_wallet():
+    try:
+        positions = exchange_api.sync_indodax_wallet_positions()
+        return jsonify({
+            "status": "success",
+            "message": f"Berhasil menyinkronkan {len(positions)} aset dari dompet Indodax.",
+            "positions": positions
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/api/gainzalgo-v2", methods=["GET"])
 def api_gainzalgo_v2():
     symbol = request.args.get("symbol", "BTCUSDT")

@@ -1,4 +1,5 @@
 import os
+import math
 import urllib.request
 import ssl
 import json
@@ -226,21 +227,136 @@ def add_live_position(symbol, side, amount, entry_price, sl_price, tp_price, tic
     logging.info(f"[LIVE POSITION] #{ticket_id} {side.upper()} {symbol} dicatat ke portfolio aktif (Qty: {amount}, Entry: {entry_price}, TP: {tp_price}, SL: {sl_price})")
     return pos
 
+def get_safe_sell_quantity(coin, desired_qty, api_key, secret_key):
+    """
+    Computes a safe sell quantity floored to asset precision to avoid 'Insufficient balance'.
+    """
+    acc = get_indodax_account_info(api_key, secret_key)
+    coin_free = 0.0
+    for b in acc.get("balances", []):
+        if b.get("asset") == coin.upper():
+            coin_free = float(b.get("free", 0.0))
+            break
+    
+    qty = min(desired_qty, coin_free) if desired_qty > 0 else coin_free
+    if qty <= 0:
+        return 0.0
+    
+    coin_u = coin.upper()
+    if coin_u in ["BTC", "ETH", "SOL"]:
+        factor = 1000000 # 6 decimals
+    elif coin_u in ["XRP", "SUI", "ADA", "ONDO"]:
+        factor = 10000 # 4 decimals
+    else:
+        factor = 100 # 2 decimals (e.g. DOGE)
+    
+    return math.floor(qty * factor) / factor
+
+def sync_indodax_wallet_positions():
+    """
+    Synchronizes open positions with the real Indodax wallet holdings.
+    Ensures any coin held in Indodax (like SOL, DOGE, XRP) is tracked with live PnL.
+    """
+    cfg = _load_app_config()
+    key = cfg.get("indodax_api_key")
+    sec = cfg.get("indodax_secret_key")
+    if not key or not sec or cfg.get("trading_mode") != "live_indodax":
+        return paper_portfolio["positions"]
+
+    acc = get_indodax_account_info(key, sec)
+    if acc.get("status") != "success":
+        return paper_portfolio["positions"]
+
+    ts = int(time.time() * 1000)
+    synced_positions = []
+    existing_map = {p.get("symbol", "").upper().replace("USDT","").replace("IDR",""): p for p in paper_portfolio.get("positions", [])}
+
+    for b in acc.get("balances", []):
+        asset = b.get("asset", "").upper()
+        free = float(b.get("free", 0.0))
+        if asset in ["IDR", "USDT"] or free <= 0:
+            continue
+
+        pair = f"{asset.lower()}idr"
+        ticker = get_ticker_price(f"{asset}IDR")
+        curr_price = float(ticker.get("last_price", 0.0))
+        est_val = free * curr_price
+        if est_val < 10000:  # Skip dust less than Rp 10.000
+            continue
+
+        if asset in existing_map:
+            pos = existing_map[asset]
+            pos["amount"] = round(free, 6)
+            pos["price_current"] = curr_price
+            entry = float(pos.get("price_open", curr_price))
+            pos["profit"] = round((curr_price - entry) * free, 0)
+            pos["profit_idr"] = pos["profit"]
+            synced_positions.append(pos)
+        else:
+            entry_price = curr_price
+            ticket_id = f"{asset.lower()}-{int(time.time())}"
+            try:
+                q = f"symbol={pair}&timestamp={ts}&recvWindow=10000"
+                sig = hmac.new(sec.encode("utf-8"), q.encode("utf-8"), hashlib.sha256).hexdigest()
+                headers = {"Accept": "application/json", "X-APIKEY": key, "Sign": sig}
+                r = requests.get(f"https://api.indodax.com/api/v2/myTrades?{q}", headers=headers, timeout=5)
+                if r.status_code == 200:
+                    trades = r.json().get("data", [])
+                    buy_trades = [t for t in trades if t.get("isBuyer")]
+                    if buy_trades:
+                        latest_buy = buy_trades[0]
+                        entry_price = float(latest_buy.get("price", curr_price))
+                        raw_order_id = str(latest_buy.get("orderId", ticket_id))
+                        ticket_id = raw_order_id.replace(f"{pair}-market-", "")
+            except Exception as e:
+                logging.error(f"Error querying trades for {asset}: {e}")
+
+            sl_pct = float(cfg.get("sl_percent", 1.5)) / 100.0
+            tp_pct = float(cfg.get("tp_percent", 3.0)) / 100.0
+            sl = round(entry_price * (1.0 - sl_pct), 0 if entry_price > 10 else 2)
+            tp = round(entry_price * (1.0 + tp_pct), 0 if entry_price > 10 else 2)
+            profit = round((curr_price - entry_price) * free, 0)
+
+            new_pos = {
+                "ticket": str(ticket_id),
+                "symbol": f"{asset}IDR",
+                "type": "BUY",
+                "mode": "live_indodax",
+                "currency": "IDR",
+                "amount": round(free, 6),
+                "price_open": entry_price,
+                "price_current": curr_price,
+                "sl": sl,
+                "tp": tp,
+                "profit": profit,
+                "profit_idr": profit
+            }
+            synced_positions.append(new_pos)
+            logging.info(f"[INDODAX WALLET SYNC] Menemukan aset {asset} di dompet: {free} @ Rp {entry_price:,.0f} (#{ticket_id})")
+
+    paper_portfolio["positions"] = synced_positions
+    save_positions_to_disk()
+    return paper_portfolio["positions"]
+
 def update_paper_positions():
     """
     Updates current price and floating PnL for open positions (paper & live Indodax).
     Automatically closes positions when Take Profit or Stop Loss is reached.
     """
+    cfg = _load_app_config()
+    is_live_mode = cfg.get("trading_mode") == "live_indodax"
+
+    if is_live_mode:
+        sync_indodax_wallet_positions()
+
     if not paper_portfolio["positions"]:
         return []
 
     remaining = []
-    cfg = _load_app_config()
     for pos in paper_portfolio["positions"]:
         sym = pos.get("symbol", "")
         is_live = pos.get("mode") == "live_indodax" or pos.get("currency") == "IDR"
-        
-        # Determine query symbol for ticker
+
         query_sym = sym
         if is_live and not query_sym.endswith("IDR"):
             query_sym = query_sym.replace("USDT", "") + "IDR"
@@ -267,7 +383,10 @@ def update_paper_positions():
                     indodax_k = cfg.get("indodax_api_key")
                     indodax_s = cfg.get("indodax_secret_key")
                     if indodax_k and indodax_s:
-                        execute_indodax_order(sym, "SELL", curr_price, amount, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
+                        coin = sym.replace("IDR", "").replace("USDT", "")
+                        safe_qty = get_safe_sell_quantity(coin, amount, indodax_k, indodax_s)
+                        if safe_qty > 0:
+                            execute_indodax_order(sym, "SELL", curr_price, safe_qty, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
                 else:
                     paper_portfolio["balance_usdt"] += profit
                     logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT TAKE PROFIT (+${profit:.2f}) at {curr_price}")
@@ -279,7 +398,10 @@ def update_paper_positions():
                     indodax_k = cfg.get("indodax_api_key")
                     indodax_s = cfg.get("indodax_secret_key")
                     if indodax_k and indodax_s:
-                        execute_indodax_order(sym, "SELL", curr_price, amount, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
+                        coin = sym.replace("IDR", "").replace("USDT", "")
+                        safe_qty = get_safe_sell_quantity(coin, amount, indodax_k, indodax_s)
+                        if safe_qty > 0:
+                            execute_indodax_order(sym, "SELL", curr_price, safe_qty, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
                 else:
                     paper_portfolio["balance_usdt"] += profit
                     logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT STOP LOSS (-${abs(profit):.2f}) at {curr_price}")
@@ -312,12 +434,14 @@ def get_paper_account_status():
     """
     update_paper_positions()
     total_profit = sum(p.get("profit", 0.0) for p in paper_portfolio["positions"])
+    cfg = _load_app_config()
+    is_live_mode = cfg.get("trading_mode") == "live_indodax"
     return {
         "balance": paper_portfolio["balance_usdt"],
         "balance_idr": paper_portfolio["balance_idr"],
         "equity": paper_portfolio["balance_usdt"] + total_profit,
         "floating_profit": total_profit,
-        "mode": "Paper Trading (Simulasi)",
+        "mode": "Live Indodax (Real)" if is_live_mode else "Paper Trading (Simulasi)",
         "exchange": "KuCoin / Indodax REST API",
         "positions": paper_portfolio["positions"]
     }
@@ -352,9 +476,11 @@ def close_paper_position(ticket):
             if is_live:
                 cfg = _load_app_config()
                 sym = pos.get("symbol", "")
-                amount = float(pos.get("amount", 0.0))
-                logging.info(f"[INDODAX MANUAL CLOSE] Menjual #{ticket} {sym} ({amount}) di pasar Indodax...")
-                execute_indodax_order(sym, "SELL", 0, amount, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
+                coin = sym.replace("IDR", "").replace("USDT", "")
+                safe_qty = get_safe_sell_quantity(coin, float(pos.get("amount", 0.0)), cfg.get("indodax_api_key"), cfg.get("indodax_secret_key"))
+                if safe_qty > 0:
+                    logging.info(f"[INDODAX MANUAL CLOSE] Menjual #{ticket} {coin} (Qty: {safe_qty}) di pasar Indodax...")
+                    execute_indodax_order(sym, "SELL", 0, safe_qty, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
             else:
                 paper_portfolio["balance_usdt"] += profit
                 logging.info(f"[PAPER TRADING] Manual Close #{ticket} {pos.get('symbol')} (PnL: ${profit:.2f})")
@@ -370,8 +496,11 @@ def close_all_paper_positions():
     for pos in list(paper_portfolio["positions"]):
         if pos.get("mode") == "live_indodax":
             sym = pos.get("symbol", "")
-            amount = float(pos.get("amount", 0.0))
-            execute_indodax_order(sym, "SELL", 0, amount, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
+            coin = sym.replace("IDR", "").replace("USDT", "")
+            safe_qty = get_safe_sell_quantity(coin, float(pos.get("amount", 0.0)), cfg.get("indodax_api_key"), cfg.get("indodax_secret_key"))
+            if safe_qty > 0:
+                logging.info(f"[INDODAX CLOSE ALL] Menjual {coin} (Qty: {safe_qty}) di pasar Indodax...")
+                execute_indodax_order(sym, "SELL", 0, safe_qty, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
         else:
             profit = float(pos.get("profit", 0.0))
             paper_portfolio["balance_usdt"] += profit

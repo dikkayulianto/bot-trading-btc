@@ -418,8 +418,31 @@ async function closePosition(ticket) {
     }
 }
 
+async function syncWallet() {
+    const btn = document.getElementById('btn-sync-wallet');
+    if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyinkronkan...';
+    try {
+        const res = await fetch('/api/indodax/sync-wallet', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+            await fetchStatus();
+        } else {
+            alert('Gagal menyinkronkan: ' + (data.message || JSON.stringify(data)));
+        }
+    } catch (err) {
+        alert('Error sinkronisasi: ' + err);
+    } finally {
+        if (btn) btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Aset Indodax';
+    }
+}
+
 async function closeAllPositions() {
-    if (!confirm('Tutup SEMUA posisi paper trading sekarang?')) return;
+    const tabTitle = document.getElementById('positions-tab-title');
+    const isLive = tabTitle && tabTitle.innerText.includes('Indodax');
+    const msg = isLive 
+        ? 'PERINGATAN: Apakah Anda yakin ingin MENJUAL dan menutup SEMUA posisi aset Indodax di harga pasar sekarang?' 
+        : 'Tutup SEMUA posisi paper trading sekarang?';
+    if (!confirm(msg)) return;
     try {
         const res = await fetch('/api/positions/close-all', { method: 'POST' });
         const data = await res.json();
