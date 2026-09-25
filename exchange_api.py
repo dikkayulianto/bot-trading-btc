@@ -1,3 +1,4 @@
+import os
 import urllib.request
 import ssl
 import json
@@ -9,6 +10,38 @@ import hashlib
 import requests
 import pandas as pd
 import numpy as np
+
+# Persistence files
+POSITIONS_FILE = os.path.join(os.path.dirname(__file__), "active_positions.json")
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
+
+def _load_app_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_positions_to_disk():
+    try:
+        with open(POSITIONS_FILE, "w") as f:
+            json.dump(paper_portfolio.get("positions", []), f, indent=2)
+    except Exception as e:
+        logging.error(f"Error saving active positions to disk: {e}")
+
+def load_saved_positions():
+    if os.path.exists(POSITIONS_FILE):
+        try:
+            with open(POSITIONS_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    paper_portfolio["positions"] = data
+                    logging.info(f"Loaded {len(data)} active position(s) from {POSITIONS_FILE}")
+        except Exception as e:
+            logging.error(f"Error loading active positions from disk: {e}")
+
 
 # Ensure IPv4 resolution for api.indodax.com to match whitelisted IPv4 address
 _orig_getaddrinfo = socket.getaddrinfo
@@ -33,6 +66,10 @@ paper_portfolio = {
     "balance_idr": 150000000.0,
     "positions": []
 }
+
+# Load persisted positions from active_positions.json if available
+load_saved_positions()
+
 
 # Real-time data caching (TTL in seconds)
 _ticker_cache = {}
@@ -156,25 +193,59 @@ def has_open_position(symbol):
     """
     Checks if there is already an active position for this symbol.
     """
-    sym_clean = symbol.upper().replace("/", "").replace("-", "")
-    for p in paper_portfolio["positions"]:
-        p_sym = p.get("symbol", "").upper().replace("/", "").replace("-", "")
+    sym_clean = symbol.upper().replace("/", "").replace("-", "").replace("USDT", "").replace("IDR", "")
+    for p in paper_portfolio.get("positions", []):
+        p_sym = p.get("symbol", "").upper().replace("/", "").replace("-", "").replace("USDT", "").replace("IDR", "")
         if p_sym == sym_clean:
             return True
     return False
 
+def add_live_position(symbol, side, amount, entry_price, sl_price, tp_price, ticket_id=None, mode="live_indodax", currency="IDR"):
+    """
+    Records an active live trading position (e.g. Indodax) for real-time tracking, TP/SL, and dashboard display.
+    """
+    if not ticket_id:
+        ticket_id = f"live-{int(time.time())}"
+    
+    pos = {
+        "ticket": str(ticket_id),
+        "symbol": symbol.upper().replace("/", "").replace("-", ""),
+        "type": side.upper(),
+        "mode": mode,
+        "currency": currency,
+        "amount": round(float(amount), 6),
+        "price_open": float(entry_price),
+        "price_current": float(entry_price),
+        "sl": float(sl_price) if sl_price else 0.0,
+        "tp": float(tp_price) if tp_price else 0.0,
+        "profit": 0.0,
+        "profit_idr": 0.0
+    }
+    paper_portfolio["positions"].append(pos)
+    save_positions_to_disk()
+    logging.info(f"[LIVE POSITION] #{ticket_id} {side.upper()} {symbol} dicatat ke portfolio aktif (Qty: {amount}, Entry: {entry_price}, TP: {tp_price}, SL: {sl_price})")
+    return pos
+
 def update_paper_positions():
     """
-    Updates current price and floating PnL for open paper positions.
+    Updates current price and floating PnL for open positions (paper & live Indodax).
     Automatically closes positions when Take Profit or Stop Loss is reached.
     """
     if not paper_portfolio["positions"]:
         return []
 
     remaining = []
+    cfg = _load_app_config()
     for pos in paper_portfolio["positions"]:
         sym = pos.get("symbol", "")
-        ticker = get_ticker_price(sym)
+        is_live = pos.get("mode") == "live_indodax" or pos.get("currency") == "IDR"
+        
+        # Determine query symbol for ticker
+        query_sym = sym
+        if is_live and not query_sym.endswith("IDR"):
+            query_sym = query_sym.replace("USDT", "") + "IDR"
+
+        ticker = get_ticker_price(query_sym)
         curr_price = float(ticker.get("last_price", 0.0))
         if curr_price <= 0:
             remaining.append(pos)
@@ -191,13 +262,27 @@ def update_paper_positions():
             profit = (curr_price - entry) * amount
             if tp > 0 and curr_price >= tp:
                 pos["profit"] = round(profit, 2)
-                paper_portfolio["balance_usdt"] += profit
-                logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT TAKE PROFIT (+${profit:.2f}) at {curr_price}")
+                if is_live:
+                    logging.info(f"[INDODAX AUTO TP] #{pos['ticket']} {sym} HIT TAKE PROFIT (+Rp {profit:,.0f}) di harga {curr_price}! Mengirim MARKET SELL...")
+                    indodax_k = cfg.get("indodax_api_key")
+                    indodax_s = cfg.get("indodax_secret_key")
+                    if indodax_k and indodax_s:
+                        execute_indodax_order(sym, "SELL", curr_price, amount, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
+                else:
+                    paper_portfolio["balance_usdt"] += profit
+                    logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT TAKE PROFIT (+${profit:.2f}) at {curr_price}")
                 continue
             elif sl > 0 and curr_price <= sl:
                 pos["profit"] = round(profit, 2)
-                paper_portfolio["balance_usdt"] += profit
-                logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT STOP LOSS (-${abs(profit):.2f}) at {curr_price}")
+                if is_live:
+                    logging.info(f"[INDODAX AUTO SL] #{pos['ticket']} {sym} HIT STOP LOSS (-Rp {abs(profit):,.0f}) di harga {curr_price}! Mengirim MARKET SELL...")
+                    indodax_k = cfg.get("indodax_api_key")
+                    indodax_s = cfg.get("indodax_secret_key")
+                    if indodax_k and indodax_s:
+                        execute_indodax_order(sym, "SELL", curr_price, amount, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
+                else:
+                    paper_portfolio["balance_usdt"] += profit
+                    logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT STOP LOSS (-${abs(profit):.2f}) at {curr_price}")
                 continue
         else: # SELL
             profit = (entry - curr_price) * amount
@@ -212,10 +297,13 @@ def update_paper_positions():
                 logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT STOP LOSS (-${abs(profit):.2f}) at {curr_price}")
                 continue
 
-        pos["profit"] = round(profit, 2)
+        pos["profit"] = round(profit, 2) if not is_live else round(profit, 0)
+        if is_live:
+            pos["profit_idr"] = pos["profit"]
         remaining.append(pos)
 
     paper_portfolio["positions"] = remaining
+    save_positions_to_disk()
     return paper_portfolio["positions"]
 
 def get_paper_account_status():
@@ -251,29 +339,47 @@ def execute_paper_order(symbol, side, amount, entry_price, sl_price, tp_price):
         "profit": 0.0
     }
     paper_portfolio["positions"].append(pos)
+    save_positions_to_disk()
     logging.info(f"[PAPER TRADING] Executed {side.upper()} on {symbol} at {entry_price} (TP: {tp_price}, SL: {sl_price})")
     return pos
 
 def close_paper_position(ticket):
     global paper_portfolio
     for i, pos in enumerate(paper_portfolio["positions"]):
-        if int(pos.get("ticket", 0)) == int(ticket):
+        if str(pos.get("ticket", "")) == str(ticket):
             profit = float(pos.get("profit", 0.0))
-            paper_portfolio["balance_usdt"] += profit
-            logging.info(f"[PAPER TRADING] Manual Close #{ticket} {pos.get('symbol')} (PnL: ${profit:.2f})")
+            is_live = pos.get("mode") == "live_indodax"
+            if is_live:
+                cfg = _load_app_config()
+                sym = pos.get("symbol", "")
+                amount = float(pos.get("amount", 0.0))
+                logging.info(f"[INDODAX MANUAL CLOSE] Menjual #{ticket} {sym} ({amount}) di pasar Indodax...")
+                execute_indodax_order(sym, "SELL", 0, amount, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
+            else:
+                paper_portfolio["balance_usdt"] += profit
+                logging.info(f"[PAPER TRADING] Manual Close #{ticket} {pos.get('symbol')} (PnL: ${profit:.2f})")
             del paper_portfolio["positions"][i]
+            save_positions_to_disk()
             return True
     return False
 
 def close_all_paper_positions():
     global paper_portfolio
+    cfg = _load_app_config()
     total_closed = len(paper_portfolio["positions"])
-    for pos in paper_portfolio["positions"]:
-        profit = float(pos.get("profit", 0.0))
-        paper_portfolio["balance_usdt"] += profit
+    for pos in list(paper_portfolio["positions"]):
+        if pos.get("mode") == "live_indodax":
+            sym = pos.get("symbol", "")
+            amount = float(pos.get("amount", 0.0))
+            execute_indodax_order(sym, "SELL", 0, amount, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
+        else:
+            profit = float(pos.get("profit", 0.0))
+            paper_portfolio["balance_usdt"] += profit
     paper_portfolio["positions"] = []
-    logging.info(f"[PAPER TRADING] Closed all {total_closed} paper positions.")
+    save_positions_to_disk()
+    logging.info(f"Closed all {total_closed} active positions.")
     return total_closed
+
 
 # ============================================================
 # INDODAX TRADE API 2.0 CONNECTOR

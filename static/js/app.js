@@ -113,8 +113,74 @@ async function fetchStatus() {
             licBadge.innerHTML = `<i class="bi bi-shield-exclamation me-1"></i> ${data.license_message}`;
         }
 
-        // 3. Account Balance & Floating PnL
-        if (data.account) {
+        // 3. Mode Badge & Tab Header
+        const mode = data.config ? (data.config.trading_mode || 'paper') : 'paper';
+        const isLiveMode = (mode === 'live_indodax');
+        const modeBadge = document.getElementById('trading-mode-badge');
+        const tabTitle = document.getElementById('positions-tab-title');
+        const thProfit = document.getElementById('th-profit-label');
+
+        if (modeBadge) {
+            if (isLiveMode) {
+                modeBadge.className = 'badge bg-danger-subtle text-rose border border-danger';
+                modeBadge.innerHTML = '<span class="spinner-grow spinner-grow-sm me-1 text-danger"></span> Live Indodax (Real)';
+            } else {
+                modeBadge.className = 'badge bg-success-subtle text-emerald border border-success';
+                modeBadge.innerHTML = '<i class="bi bi-shield-check me-1"></i> Paper Trading Mode';
+            }
+        }
+
+        if (tabTitle) {
+            if (isLiveMode) {
+                tabTitle.innerHTML = '<span class="text-danger fw-bold"><i class="bi bi-broadcast me-1"></i>Posisi Trading Indodax (Real)</span>';
+            } else {
+                tabTitle.innerText = 'Posisi Paper Trading';
+            }
+        }
+
+        if (thProfit) {
+            thProfit.innerText = isLiveMode ? 'Profit (IDR)' : 'Profit ($)';
+        }
+
+        // 3b. Indodax Real Account Status
+        const indodaxStatusElem = document.getElementById('indodax-acc-status');
+        const indodaxBalElem = document.getElementById('indodax-idr-bal');
+        
+        if (data.indodax_account && data.indodax_account.status === 'success') {
+            const acc = data.indodax_account;
+            if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-emerald"><i class="bi bi-check-circle-fill me-1"></i>Terhubung (UID: ${acc.uid})</span>`;
+            if (indodaxBalElem) indodaxBalElem.innerText = `Saldo: Rp ${Number(acc.idr_balance || 0).toLocaleString('id-ID')}`;
+        } else {
+            if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-secondary"><i class="bi bi-exclamation-circle me-1"></i>Belum Terhubung</span>`;
+            if (indodaxBalElem) indodaxBalElem.innerText = '';
+        }
+
+        // 3c. Account Balance & Floating PnL Display
+        const positions = (data.account && data.account.positions) ? data.account.positions : [];
+        if (isLiveMode && data.indodax_account && data.indodax_account.status === 'success') {
+            const indodaxBal = Number(data.indodax_account.idr_balance) || 0;
+            const livePositions = positions.filter(p => p.mode === 'live_indodax' || p.currency === 'IDR');
+            const totalIdrPnl = livePositions.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
+            
+            document.getElementById('acc-balance').innerHTML = `Rp ${indodaxBal.toLocaleString('id-ID')} <span class="fs-6 text-muted font-normal">IDR</span>`;
+            document.getElementById('acc-balance-idr').innerText = `Indodax Real (UID: ${data.indodax_account.uid})`;
+            
+            const pnlElem = document.getElementById('acc-floating');
+            if (totalIdrPnl > 0) {
+                pnlElem.className = 'kpi-value pnl-pos';
+                pnlElem.innerText = `+Rp ${Math.round(totalIdrPnl).toLocaleString('id-ID')}`;
+            } else if (totalIdrPnl < 0) {
+                pnlElem.className = 'kpi-value pnl-neg';
+                pnlElem.innerText = `-Rp ${Math.abs(Math.round(totalIdrPnl)).toLocaleString('id-ID')}`;
+            } else {
+                pnlElem.className = 'kpi-value text-secondary';
+                pnlElem.innerText = `Rp 0`;
+            }
+            document.getElementById('acc-equity').innerText = `Est. Saldo + PnL: Rp ${(indodaxBal + totalIdrPnl).toLocaleString('id-ID')}`;
+
+            // Render Positions Table
+            renderPositions(positions);
+        } else if (data.account) {
             const bal = data.account.balance || 0;
             const balIdr = data.account.balance_idr || 0;
             const floatPnl = Number(data.account.floating_profit) || 0;
@@ -137,33 +203,9 @@ async function fetchStatus() {
             document.getElementById('acc-equity').innerText = `Equity: $${equity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
             // Render Positions Table
-            renderPositions(data.account.positions || []);
+            renderPositions(positions);
         }
 
-        // 3b. Indodax Real Account Status
-        const indodaxStatusElem = document.getElementById('indodax-acc-status');
-        const indodaxBalElem = document.getElementById('indodax-idr-bal');
-        const modeBadge = document.getElementById('trading-mode-badge');
-        
-        if (data.indodax_account && data.indodax_account.status === 'success') {
-            const acc = data.indodax_account;
-            if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-emerald"><i class="bi bi-check-circle-fill me-1"></i>Terhubung (UID: ${acc.uid})</span>`;
-            if (indodaxBalElem) indodaxBalElem.innerText = `Saldo: Rp ${Number(acc.idr_balance || 0).toLocaleString('id-ID')}`;
-        } else {
-            if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-secondary"><i class="bi bi-exclamation-circle me-1"></i>Belum Terhubung</span>`;
-            if (indodaxBalElem) indodaxBalElem.innerText = '';
-        }
-
-        if (modeBadge) {
-            const mode = data.config ? (data.config.trading_mode || 'paper') : 'paper';
-            if (mode === 'live_indodax') {
-                modeBadge.className = 'badge bg-danger-subtle text-rose border border-danger';
-                modeBadge.innerHTML = '<span class="spinner-grow spinner-grow-sm me-1 text-danger"></span> Live Indodax (Real)';
-            } else {
-                modeBadge.className = 'badge bg-success-subtle text-emerald border border-success';
-                modeBadge.innerHTML = '<i class="bi bi-shield-check me-1"></i> Paper Trading Mode';
-            }
-        }
 
         // 4. Render Active Coin Pills
         if (data.config && data.config.symbols) {
@@ -288,20 +330,45 @@ function renderPositions(positions) {
 
     let html = '';
     positions.forEach(p => {
+        const isLive = (p.mode === 'live_indodax') || (p.currency === 'IDR');
         const profit = Number(p.profit) || 0;
         let pnlText = '$0.00';
         let pnlClass = 'pnl-zero';
-        if (profit > 0) {
-            pnlText = `+$${profit.toFixed(2)}`;
-            pnlClass = 'pnl-pos';
-        } else if (profit < 0) {
-            pnlText = `-$${Math.abs(profit).toFixed(2)}`;
-            pnlClass = 'pnl-neg';
+
+        if (isLive) {
+            if (profit > 0) {
+                pnlText = `+Rp ${Math.round(profit).toLocaleString('id-ID')}`;
+                pnlClass = 'pnl-pos';
+            } else if (profit < 0) {
+                pnlText = `-Rp ${Math.abs(Math.round(profit)).toLocaleString('id-ID')}`;
+                pnlClass = 'pnl-neg';
+            } else {
+                pnlText = `Rp 0`;
+            }
+        } else {
+            if (profit > 0) {
+                pnlText = `+$${profit.toFixed(2)}`;
+                pnlClass = 'pnl-pos';
+            } else if (profit < 0) {
+                pnlText = `-$${Math.abs(profit).toFixed(2)}`;
+                pnlClass = 'pnl-neg';
+            }
         }
 
-        const sideBadge = (p.type === 'BUY') 
-            ? '<span class="badge bg-success-subtle text-success border border-success">BUY</span>'
-            : '<span class="badge bg-danger-subtle text-danger border border-danger">SELL</span>';
+        let sideBadge = '';
+        if (isLive) {
+            sideBadge = (p.type === 'BUY') 
+                ? '<span class="badge bg-danger text-light border border-danger"><i class="bi bi-broadcast me-1"></i>REAL BUY</span>'
+                : '<span class="badge bg-warning text-dark border border-warning"><i class="bi bi-broadcast me-1"></i>REAL SELL</span>';
+        } else {
+            sideBadge = (p.type === 'BUY') 
+                ? '<span class="badge bg-success-subtle text-success border border-success">BUY</span>'
+                : '<span class="badge bg-danger-subtle text-danger border border-danger">SELL</span>';
+        }
+
+        const priceOpenFmt = isLive ? `Rp ${Number(p.price_open).toLocaleString('id-ID')}` : `$${p.price_open}`;
+        const slFmt = isLive ? (p.sl ? `Rp ${Number(p.sl).toLocaleString('id-ID')}` : '--') : (p.sl ? `$${p.sl}` : '--');
+        const tpFmt = isLive ? (p.tp ? `Rp ${Number(p.tp).toLocaleString('id-ID')}` : '--') : (p.tp ? `$${p.tp}` : '--');
 
         html += `
             <tr>
@@ -312,13 +379,13 @@ function renderPositions(positions) {
                     </a>
                 </td>
                 <td>${sideBadge}</td>
-                <td class="font-mono">${p.amount}</td>
-                <td class="font-mono">$${p.price_open}</td>
-                <td class="font-mono text-danger">$${p.sl}</td>
-                <td class="font-mono text-success">$${p.tp}</td>
-                <td class="font-mono"><span class="${pnlClass}">${pnlText}</span></td>
+                <td class="font-mono fw-semibold">${p.amount}</td>
+                <td class="font-mono">${priceOpenFmt}</td>
+                <td class="font-mono text-danger">${slFmt}</td>
+                <td class="font-mono text-success">${tpFmt}</td>
+                <td class="font-mono fw-bold"><span class="${pnlClass}">${pnlText}</span></td>
                 <td class="text-center">
-                    <button class="btn btn-sm btn-outline-danger px-2 py-0 rounded-pill" style="font-size: 0.7rem;" onclick="closePosition(${p.ticket})">
+                    <button class="btn btn-sm btn-outline-danger px-2 py-0 rounded-pill" style="font-size: 0.7rem;" onclick="closePosition('${p.ticket}')">
                         <i class="bi bi-x me-1"></i>Tutup
                     </button>
                 </td>

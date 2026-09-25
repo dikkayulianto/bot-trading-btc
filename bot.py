@@ -290,9 +290,37 @@ def bot_trading_cycle():
                                 secret_key=indodax_sec
                             )
                             if order_res.get("status") == "success":
-                                logging.info(f"[INDODAX REAL] Order {sig} #{order_res.get('data', {}).get('orderId')} sukses dikirim ke Indodax.")
+                                order_data = order_res.get("data", {})
+                                order_id = order_data.get("orderId") or int(time.time())
+                                logging.info(f"[INDODAX REAL] Order {sig} #{order_id} sukses dikirim ke Indodax.")
+                                
+                                if sig == "BUY":
+                                    pair_sym = f"{coin_code}IDR"
+                                    ticker_idr = exchange_api.get_ticker_price(pair_sym)
+                                    live_price = float(ticker_idr.get("last_price", 0.0))
+                                    if live_price <= 0:
+                                        live_price = float(entry) if entry > 1000 else float(entry) * 15500
+                                    
+                                    sl_pct = float(config_data.get("sl_percent", 1.5)) / 100.0
+                                    tp_pct = float(config_data.get("tp_percent", 3.0)) / 100.0
+                                    calc_sl = round(live_price * (1.0 - sl_pct), 0)
+                                    calc_tp = round(live_price * (1.0 + tp_pct), 0)
+                                    est_amount = round(trade_idr / live_price, 6) if live_price > 0 else 0
+                                    
+                                    exchange_api.add_live_position(
+                                        symbol=pair_sym,
+                                        side="BUY",
+                                        amount=est_amount,
+                                        entry_price=live_price,
+                                        sl_price=calc_sl,
+                                        tp_price=calc_tp,
+                                        ticket_id=order_id,
+                                        mode="live_indodax",
+                                        currency="IDR"
+                                    )
                             else:
                                 logging.error(f"[INDODAX REAL ERROR] Gagal mengirim order {sig} ke Indodax: {order_res.get('data') or order_res.get('message')}")
+
                         else:
                             logging.warning("[INDODAX] Mode Live dipilih namun API Key belum diisi. Order dilewati.")
                     else:

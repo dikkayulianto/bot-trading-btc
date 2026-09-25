@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,6 +16,7 @@ config.json
 # Cache & Logs
 *.log
 latest_ai_results.json
+active_positions.json
 
 # IDE & OS
 .idea/
