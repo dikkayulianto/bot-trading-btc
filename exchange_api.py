@@ -118,12 +118,9 @@ def get_crypto_klines(symbol="BTCUSDT", timeframe="5m", limit=100):
     if cached and (now - cached["timestamp"] < KLINE_CACHE_TTL):
         return cached["df"].copy()
     
-    # Format KuCoin Symbol
-    if not symbol_upper.endswith("-USDT") and symbol_upper.endswith("USDT"):
-        coin = symbol_upper.replace("USDT", "")
-        kucoin_symbol = f"{coin}-USDT"
-    else:
-        kucoin_symbol = symbol_upper
+    # Format KuCoin Symbol for reliable candle fetching
+    coin = symbol_upper.replace("USDT", "").replace("IDR", "").replace("-", "").replace("/", "")
+    kucoin_symbol = f"{coin}-USDT"
 
     tf_map = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "1hour", "4h": "4hour", "1d": "1day"}
     kc_tf = tf_map.get(timeframe.lower(), "5min")
@@ -341,14 +338,9 @@ def execute_indodax_order(symbol, side, price, quantity, order_type="LIMIT", api
     if not api_key or not secret_key:
         return {"status": "error", "message": "Indodax API Key dan Secret Key diperlukan."}
 
-    # Format pair to Indodax format (e.g. BTCUSDT -> btcidr or btcusdt)
-    sym = symbol.lower().replace("/", "").replace("-", "")
-    if sym.endswith("usdt"):
-        pair_sym = sym
-    elif sym.endswith("idr"):
-        pair_sym = sym
-    else:
-        pair_sym = f"{sym}idr"
+    # Extract base coin e.g. BTC from BTCUSDT or BTCIDR
+    coin = symbol.lower().replace("/", "").replace("-", "").replace("usdt", "").replace("idr", "")
+    pair_sym = f"{coin}idr"
 
     ts = int(time.time() * 1000)
     params = {
@@ -359,13 +351,21 @@ def execute_indodax_order(symbol, side, price, quantity, order_type="LIMIT", api
         "recvWindow": 10000
     }
     if order_type.upper() == "LIMIT":
-        params["price"] = str(price)
+        # Get live Indodax IDR price if price was passed in USD
+        if price < 1000000 and "btc" in pair_sym:
+            ticker = get_ticker_price(f"{coin.upper()}IDR")
+            actual_price = ticker.get("last_price", price * 15500)
+        else:
+            actual_price = price
+        params["price"] = str(int(actual_price))
         params["quantity"] = str(quantity)
     elif order_type.upper() == "MARKET":
         if side.upper() == "BUY":
-            params["quoteOrderQty"] = str(int(price * quantity))
+            # For BUY MARKET on Indodax, quoteOrderQty must be IDR amount (minimum Rp 10,000)
+            idr_nominal = int(quantity) if quantity >= 10000 else 50000
+            params["quoteOrderQty"] = str(idr_nominal)
         else:
-            params["quantity"] = str(quantity)
+            params["quantity"] = str(round(quantity, 6))
 
     body_str = urllib.parse.urlencode(params)
     sig = hmac.new(secret_key.encode("utf-8"), body_str.encode("utf-8"), hashlib.sha256).hexdigest()

@@ -263,12 +263,13 @@ def bot_trading_cycle():
                         indodax_key = config_data.get("indodax_api_key")
                         indodax_sec = config_data.get("indodax_secret_key")
                         if indodax_key and indodax_sec:
+                            trade_idr = float(config_data.get("trade_amount_idr", 50000))
                             order_res = exchange_api.execute_indodax_order(
                                 symbol=symbol,
                                 side=sig,
                                 price=entry,
-                                quantity=trade_amount,
-                                order_type="LIMIT",
+                                quantity=trade_idr if sig == "BUY" else trade_amount,
+                                order_type="MARKET",
                                 api_key=indodax_key,
                                 secret_key=indodax_sec
                             )
