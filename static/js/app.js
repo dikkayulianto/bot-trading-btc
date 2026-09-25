@@ -4,6 +4,7 @@ let renderedSymbols = '';
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchStatus();
+    fetchTradeHistory();
     pollTimer = setInterval(fetchStatus, 3000);
 });
 
@@ -309,10 +310,12 @@ async function fetchStatus() {
 }
 
 let currentActiveTab = 'positions';
+let cachedTradeHistory = [];
+let historyFilter = 'ALL';
 
 function switchTab(tabName) {
     currentActiveTab = tabName;
-    ['positions', 'logs', 'config'].forEach(t => {
+    ['positions', 'history', 'logs', 'config'].forEach(t => {
         const btn = document.getElementById(`${t}-tab`);
         const pane = document.getElementById(`${t}-pane`);
         if (btn && pane) {
@@ -327,7 +330,122 @@ function switchTab(tabName) {
             }
         }
     });
+
+    if (tabName === 'history') {
+        fetchTradeHistory();
+    }
 }
+
+async function fetchTradeHistory(force = false) {
+    const tbody = document.getElementById('history-tbody');
+    if (!tbody) return;
+    if (force || cachedTradeHistory.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2 text-info"></span>Memuat riwayat transaksi perdagangan...</td></tr>';
+    }
+
+    try {
+        const res = await fetch('/api/trades/history');
+        const data = await res.json();
+        if (data.status === 'success') {
+            cachedTradeHistory = data.history || [];
+            renderTradeHistorySummary(data.summary || {});
+            renderTradeHistory(cachedTradeHistory);
+        } else {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${data.message || 'Gagal memuat riwayat'}</td></tr>`;
+        }
+    } catch (err) {
+        console.error('Error fetching trade history:', err);
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error koneksi riwayat: ${err}</td></tr>`;
+    }
+}
+
+function renderTradeHistorySummary(s) {
+    const elTotal = document.getElementById('hist-total-trades');
+    const elBuy = document.getElementById('hist-buy-vol');
+    const elSell = document.getElementById('hist-sell-vol');
+    const elPnl = document.getElementById('hist-realized-pnl');
+
+    if (elTotal) elTotal.innerText = `${s.total_trades || 0} Order`;
+    if (elBuy) elBuy.innerText = `Rp ${Number(s.total_buy_volume_idr || 0).toLocaleString('id-ID')}`;
+    if (elSell) elSell.innerText = `Rp ${Number(s.total_sell_volume_idr || 0).toLocaleString('id-ID')}`;
+    if (elPnl) {
+        const pnl = Number(s.total_realized_profit_idr !== undefined ? s.total_realized_profit_idr : s.total_realized_profit) || 0;
+        if (pnl > 0) {
+            elPnl.className = 'fw-bold fs-6 text-emerald';
+            elPnl.innerText = `+Rp ${Math.round(pnl).toLocaleString('id-ID')}`;
+        } else if (pnl < 0) {
+            elPnl.className = 'fw-bold fs-6 text-rose';
+            elPnl.innerText = `-Rp ${Math.abs(Math.round(pnl)).toLocaleString('id-ID')}`;
+        } else {
+            elPnl.className = 'fw-bold fs-6 text-secondary';
+            elPnl.innerText = `Rp 0`;
+        }
+    }
+}
+
+function applyHistoryFilter(filterVal) {
+    historyFilter = filterVal;
+    renderTradeHistory(cachedTradeHistory);
+}
+
+function renderTradeHistory(trades) {
+    const tbody = document.getElementById('history-tbody');
+    if (!tbody) return;
+
+    let filtered = trades;
+    if (historyFilter !== 'ALL') {
+        filtered = trades.filter(t => t.side === historyFilter);
+    }
+
+    if (!filtered || filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Belum ada riwayat transaksi pada filter ini.</td></tr>';
+        return;
+    }
+
+    let html = '';
+    filtered.forEach(t => {
+        const isBuy = t.side === 'BUY';
+        const sideBadge = isBuy
+            ? '<span class="badge bg-success-subtle text-emerald border border-success px-2 py-1"><i class="bi bi-arrow-down-left me-1"></i>BUY</span>'
+            : '<span class="badge bg-danger-subtle text-rose border border-danger px-2 py-1"><i class="bi bi-arrow-up-right me-1"></i>SELL</span>';
+
+        const pnlVal = Number(t.pnl) || 0;
+        let pnlText = '-';
+        let pnlClass = 'text-muted';
+        if (!isBuy) {
+            if (pnlVal > 0) {
+                pnlText = `+Rp ${Math.round(pnlVal).toLocaleString('id-ID')}`;
+                pnlClass = 'text-emerald fw-bold';
+            } else if (pnlVal < 0) {
+                pnlText = `-Rp ${Math.abs(Math.round(pnlVal)).toLocaleString('id-ID')}`;
+                pnlClass = 'text-rose fw-bold';
+            } else {
+                pnlText = 'Rp 0';
+                pnlClass = 'text-secondary';
+            }
+        }
+
+        const priceFmt = `Rp ${Number(t.price).toLocaleString('id-ID')}`;
+        const totalFmt = `Rp ${Number(t.quote_qty || (t.price * t.qty)).toLocaleString('id-ID')}`;
+
+        html += `
+            <tr>
+                <td class="font-mono text-muted small">${t.datetime || '--'}</td>
+                <td class="font-mono text-light fw-semibold">#${t.order_id || '--'}</td>
+                <td>
+                    <span class="fw-bold text-light">${t.symbol}</span>
+                </td>
+                <td>${sideBadge}</td>
+                <td class="font-mono">${Number(t.qty).toFixed(t.qty < 1 ? 6 : 4)}</td>
+                <td class="font-mono">${priceFmt}</td>
+                <td class="font-mono fw-semibold">${totalFmt}</td>
+                <td class="font-mono"><span class="${pnlClass}">${pnlText}</span></td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
 
 function renderPositions(positions) {
     const tbody = document.getElementById('positions-tbody');

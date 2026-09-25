@@ -151,6 +151,14 @@ def api_indodax_sync_wallet():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/api/trades/history", methods=["GET"])
+def api_trades_history():
+    mode = request.args.get("mode")
+    limit = int(request.args.get("limit", 100))
+    res = exchange_api.get_trade_history(mode=mode, limit=limit)
+    return jsonify(res)
+
+
 
 @app.route("/api/gainzalgo-v2", methods=["GET"])
 def api_gainzalgo_v2():

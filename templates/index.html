@@ -304,6 +304,11 @@
                                 </button>
                             </li>
                             <li class="nav-item">
+                                <button class="nav-link" id="history-tab" type="button" onclick="switchTab('history')">
+                                    <i class="bi bi-clock-history me-1"></i> Riwayat Perdagangan
+                                </button>
+                            </li>
+                            <li class="nav-item">
                                 <button class="nav-link" id="logs-tab" type="button" onclick="switchTab('logs')">
                                     <i class="bi bi-terminal me-1"></i> System Logs
                                 </button>
@@ -349,6 +354,76 @@
                                 </table>
                             </div>
                         </div>
+
+                        <!-- Tab 2: Trade History Table -->
+                        <div class="tab-pane fade" id="history-pane" role="tabpanel" style="display: none;">
+                            <!-- History Summary Strip -->
+                            <div class="row g-2 mb-3">
+                                <div class="col-6 col-md-3">
+                                    <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
+                                        <div class="small text-secondary" style="font-size:0.7rem;">TOTAL TRANSAKSI</div>
+                                        <div class="fw-bold text-light fs-6" id="hist-total-trades">0</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
+                                        <div class="small text-secondary" style="font-size:0.7rem;">TOTAL VOLUME BELI</div>
+                                        <div class="fw-bold text-emerald fs-6" id="hist-buy-vol">Rp 0</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
+                                        <div class="small text-secondary" style="font-size:0.7rem;">TOTAL VOLUME JUAL</div>
+                                        <div class="fw-bold text-info fs-6" id="hist-sell-vol">Rp 0</div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
+                                        <div class="small text-secondary" style="font-size:0.7rem;">EST. REALIZED PnL</div>
+                                        <div class="fw-bold fs-6 text-light" id="hist-realized-pnl">Rp 0</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- History Controls -->
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="small text-secondary"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                                    <select id="hist-filter" class="form-select form-select-sm bg-dark text-light border-secondary rounded-pill px-3 py-1" style="width: auto; font-size: 0.75rem;" onchange="applyHistoryFilter(this.value)">
+                                        <option value="ALL">Semua Transaksi</option>
+                                        <option value="BUY">Order Beli (BUY)</option>
+                                        <option value="SELL">Order Jual (SELL)</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-sm btn-outline-info rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="fetchTradeHistory(true)">
+                                    <i class="bi bi-arrow-repeat me-1"></i> Refresh Riwayat
+                                </button>
+                            </div>
+
+                            <!-- History Table -->
+                            <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                                <table class="table table-dark table-hover table-pro align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Waktu (WIB)</th>
+                                            <th>#Order</th>
+                                            <th>Pair</th>
+                                            <th>Tipe</th>
+                                            <th>Jumlah Koin</th>
+                                            <th>Harga Eksekusi</th>
+                                            <th>Total Nilai</th>
+                                            <th>Realized PnL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="history-tbody">
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted py-4">Memuat riwayat transaksi...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
 
                         <!-- Tab 2: Terminal System Logs -->
                         <div class="tab-pane fade" id="logs-pane" role="tabpanel" style="display: none;">

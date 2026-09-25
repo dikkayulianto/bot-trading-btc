@@ -9,12 +9,14 @@ import socket
 import hmac
 import hashlib
 import requests
+import datetime
 import pandas as pd
 import numpy as np
 
 # Persistence files
 POSITIONS_FILE = os.path.join(os.path.dirname(__file__), "active_positions.json")
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
+HISTORY_FILE = os.path.join(os.path.dirname(__file__), "trade_history.json")
 
 def _load_app_config():
     if os.path.exists(CONFIG_FILE):
@@ -24,6 +26,38 @@ def _load_app_config():
         except Exception:
             pass
     return {}
+
+def record_paper_history(pos, close_price, profit, reason="MANUAL CLOSE"):
+    try:
+        history = []
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    history = data
+        now = time.time()
+        record = {
+            "order_id": str(pos.get("ticket", "")),
+            "symbol": pos.get("symbol", ""),
+            "side": pos.get("type", "BUY"),
+            "amount": float(pos.get("amount", 0)),
+            "price_open": float(pos.get("price_open", close_price)),
+            "price_close": float(close_price),
+            "profit": round(float(profit), 2),
+            "profit_idr": round(float(profit), 2) if pos.get("currency") == "IDR" else 0,
+            "currency": pos.get("currency", "USDT"),
+            "mode": pos.get("mode", "paper"),
+            "reason": reason,
+            "time": int(now * 1000),
+            "datetime": datetime.datetime.fromtimestamp(now).strftime("%d/%m/%Y %H:%M:%S")
+        }
+        history.insert(0, record)
+        history = history[:200]
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(history, f, indent=2)
+    except Exception as e:
+        logging.error(f"Error saving paper trade history: {e}")
+
 
 def save_positions_to_disk():
     try:
@@ -389,6 +423,7 @@ def update_paper_positions():
                             execute_indodax_order(sym, "SELL", curr_price, safe_qty, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
                 else:
                     paper_portfolio["balance_usdt"] += profit
+                    record_paper_history(pos, curr_price, profit, reason="TAKE PROFIT")
                     logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT TAKE PROFIT (+${profit:.2f}) at {curr_price}")
                 continue
             elif sl > 0 and curr_price <= sl:
@@ -404,6 +439,7 @@ def update_paper_positions():
                             execute_indodax_order(sym, "SELL", curr_price, safe_qty, order_type="MARKET", api_key=indodax_k, secret_key=indodax_s)
                 else:
                     paper_portfolio["balance_usdt"] += profit
+                    record_paper_history(pos, curr_price, profit, reason="STOP LOSS")
                     logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT STOP LOSS (-${abs(profit):.2f}) at {curr_price}")
                 continue
         else: # SELL
@@ -411,11 +447,13 @@ def update_paper_positions():
             if tp > 0 and curr_price <= tp:
                 pos["profit"] = round(profit, 2)
                 paper_portfolio["balance_usdt"] += profit
+                record_paper_history(pos, curr_price, profit, reason="TAKE PROFIT")
                 logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT TAKE PROFIT (+${profit:.2f}) at {curr_price}")
                 continue
             elif sl > 0 and curr_price >= sl:
                 pos["profit"] = round(profit, 2)
                 paper_portfolio["balance_usdt"] += profit
+                record_paper_history(pos, curr_price, profit, reason="STOP LOSS")
                 logging.info(f"[PAPER TRADING] #{pos['ticket']} {sym} HIT STOP LOSS (-${abs(profit):.2f}) at {curr_price}")
                 continue
 
@@ -483,6 +521,7 @@ def close_paper_position(ticket):
                     execute_indodax_order(sym, "SELL", 0, safe_qty, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
             else:
                 paper_portfolio["balance_usdt"] += profit
+                record_paper_history(pos, pos.get("price_current", pos.get("price_open")), profit, reason="MANUAL CLOSE")
                 logging.info(f"[PAPER TRADING] Manual Close #{ticket} {pos.get('symbol')} (PnL: ${profit:.2f})")
             del paper_portfolio["positions"][i]
             save_positions_to_disk()
@@ -504,10 +543,135 @@ def close_all_paper_positions():
         else:
             profit = float(pos.get("profit", 0.0))
             paper_portfolio["balance_usdt"] += profit
+            record_paper_history(pos, pos.get("price_current", pos.get("price_open")), profit, reason="CLOSE ALL")
     paper_portfolio["positions"] = []
     save_positions_to_disk()
     logging.info(f"Closed all {total_closed} active positions.")
     return total_closed
+
+# ============================================================
+# TRADE HISTORY CONNECTOR & LOGIC
+# ============================================================
+
+_trade_history_cache = {"timestamp": 0, "data": None}
+TRADE_HISTORY_CACHE_TTL = 4.0
+
+def get_indodax_trade_history(limit=100):
+    cfg = _load_app_config()
+    key = cfg.get("indodax_api_key")
+    sec = cfg.get("indodax_secret_key")
+    if not key or not sec:
+        return {"status": "error", "message": "Indodax API Key belum diatur.", "history": [], "summary": {}}
+
+    now = time.time()
+    if _trade_history_cache["timestamp"] and (now - _trade_history_cache["timestamp"] < TRADE_HISTORY_CACHE_TTL) and _trade_history_cache["data"]:
+        return _trade_history_cache["data"]
+
+    symbols_to_query = set()
+    for s in cfg.get("symbols", []):
+        coin = s.upper().replace("USDT", "").replace("IDR", "").replace("-", "").replace("/", "").lower()
+        if coin:
+            symbols_to_query.add(f"{coin}idr")
+    for default_coin in ["xrpidr", "dogeidr", "solidr", "suiidr", "btcidr", "ethidr", "ondoidr"]:
+        symbols_to_query.add(default_coin)
+
+    ts = int(now * 1000)
+    order_map = {}
+
+    for sym in symbols_to_query:
+        try:
+            q = f"symbol={sym}&timestamp={ts}&recvWindow=10000"
+            sig = hmac.new(sec.encode("utf-8"), q.encode("utf-8"), hashlib.sha256).hexdigest()
+            headers = {"Accept": "application/json", "X-APIKEY": key, "Sign": sig}
+            r = requests.get(f"https://api.indodax.com/api/v2/myTrades?{q}", headers=headers, timeout=5)
+            if r.status_code == 200:
+                for t in r.json().get("data", []):
+                    oid = str(t.get("orderId"))
+                    qty = float(t.get("qty", 0))
+                    quote_qty = float(t.get("quoteQty", 0))
+                    commission = float(t.get("commission", 0))
+                    if oid not in order_map:
+                        order_map[oid] = {
+                            "order_id": oid.split("-")[-1],
+                            "full_order_id": oid,
+                            "symbol": t.get("symbol").upper(),
+                            "side": "BUY" if t.get("isBuyer") else "SELL",
+                            "time": t.get("time"),
+                            "qty": qty,
+                            "quote_qty": quote_qty,
+                            "commission": commission,
+                            "currency": "IDR",
+                            "mode": "live_indodax"
+                        }
+                    else:
+                        order_map[oid]["qty"] += qty
+                        order_map[oid]["quote_qty"] += quote_qty
+                        order_map[oid]["commission"] += commission
+        except Exception as e:
+            logging.error(f"Error fetching trade history for {sym}: {e}")
+
+    trades = list(order_map.values())
+    trades.sort(key=lambda x: x["time"])  # chronological order for matching
+
+    last_buy_price = {}
+    total_buy_vol = 0.0
+    total_sell_vol = 0.0
+    total_realized_profit = 0.0
+
+    for t in trades:
+        sym = t["symbol"]
+        t["price"] = round(t["quote_qty"] / t["qty"], 2) if t["qty"] > 0 else 0
+        t["datetime"] = datetime.datetime.fromtimestamp(t["time"] / 1000).strftime("%d/%m/%Y %H:%M:%S")
+        if t["side"] == "BUY":
+            last_buy_price[sym] = t["price"]
+            t["pnl"] = 0.0
+            total_buy_vol += t["quote_qty"]
+        else:
+            buy_p = last_buy_price.get(sym, t["price"])
+            pnl = round((t["price"] - buy_p) * t["qty"] - t["commission"], 0)
+            t["pnl"] = pnl
+            total_realized_profit += pnl
+            total_sell_vol += t["quote_qty"]
+
+    trades.sort(key=lambda x: x["time"], reverse=True)  # newest first
+    limited_trades = trades[:limit]
+
+    summary = {
+        "total_trades": len(trades),
+        "total_buy_volume_idr": round(total_buy_vol, 0),
+        "total_sell_volume_idr": round(total_sell_vol, 0),
+        "total_realized_profit_idr": round(total_realized_profit, 0),
+        "mode": "live_indodax"
+    }
+
+    result = {"status": "success", "history": limited_trades, "summary": summary}
+    _trade_history_cache["timestamp"] = now
+    _trade_history_cache["data"] = result
+    return result
+
+def get_trade_history(mode=None, limit=100):
+    cfg = _load_app_config()
+    current_mode = mode or cfg.get("trading_mode", "paper")
+    if current_mode == "live_indodax":
+        return get_indodax_trade_history(limit=limit)
+    else:
+        history = []
+        if os.path.exists(HISTORY_FILE):
+            try:
+                with open(HISTORY_FILE, "r") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        history = data
+            except Exception:
+                pass
+        total_pnl = sum(h.get("profit", 0) for h in history)
+        summary = {
+            "total_trades": len(history),
+            "total_realized_profit": round(total_pnl, 2),
+            "mode": "paper"
+        }
+        return {"status": "success", "history": history[:limit], "summary": summary}
+
 
 
 # ============================================================
