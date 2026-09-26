@@ -125,13 +125,17 @@ async function fetchStatus() {
 
         // 3. Mode Badge & Tab Header
         const mode = data.config ? (data.config.trading_mode || 'paper') : 'paper';
+        const isBybit = (mode === 'live_bybit');
         const isLiveMode = (mode === 'live_indodax');
         const modeBadge = document.getElementById('trading-mode-badge');
         const tabTitle = document.getElementById('positions-tab-title');
         const thProfit = document.getElementById('th-profit-label');
 
         if (modeBadge) {
-            if (isLiveMode) {
+            if (isBybit) {
+                modeBadge.className = 'badge bg-warning text-dark border border-warning';
+                modeBadge.innerHTML = '<span class="spinner-grow spinner-grow-sm me-1 text-dark"></span> ⚡ Live Bybit Futures (5x)';
+            } else if (isLiveMode) {
                 modeBadge.className = 'badge bg-danger-subtle text-rose border border-danger';
                 modeBadge.innerHTML = '<span class="spinner-grow spinner-grow-sm me-1 text-danger"></span> Live Indodax (Real)';
             } else {
@@ -141,7 +145,9 @@ async function fetchStatus() {
         }
 
         if (tabTitle) {
-            if (isLiveMode) {
+            if (isBybit) {
+                tabTitle.innerHTML = '<span class="text-warning fw-bold"><i class="bi bi-lightning-charge me-1"></i>Posisi Bybit Futures (Real 2-Arah)</span>';
+            } else if (isLiveMode) {
                 tabTitle.innerHTML = '<span class="text-danger fw-bold"><i class="bi bi-broadcast me-1"></i>Posisi Trading Indodax (Real)</span>';
             } else {
                 tabTitle.innerText = 'Posisi Paper Trading';
@@ -149,14 +155,23 @@ async function fetchStatus() {
         }
 
         if (thProfit) {
-            thProfit.innerText = isLiveMode ? 'Profit (IDR)' : 'Profit ($)';
+            thProfit.innerText = isLiveMode ? 'Profit (IDR)' : 'Profit ($ USDT)';
         }
 
-        // 3b. Indodax Real Account Status
+        // 3b. Exchange Real Account Status
         const indodaxStatusElem = document.getElementById('indodax-acc-status');
         const indodaxBalElem = document.getElementById('indodax-idr-bal');
         
-        if (data.indodax_account && data.indodax_account.status === 'success') {
+        if (isBybit) {
+            if (data.bybit_account && data.bybit_account.status === 'success') {
+                const bAcc = data.bybit_account;
+                if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-emerald"><i class="bi bi-check-circle-fill me-1"></i>Bybit V5 Terhubung</span>`;
+                if (indodaxBalElem) indodaxBalElem.innerText = `Tersedia: $${Number(bAcc.total_available_balance || 0).toFixed(2)} USDT`;
+            } else {
+                if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i>Bybit Belum Terhubung</span>`;
+                if (indodaxBalElem) indodaxBalElem.innerText = '';
+            }
+        } else if (data.indodax_account && data.indodax_account.status === 'success') {
             const acc = data.indodax_account;
             if (indodaxStatusElem) indodaxStatusElem.innerHTML = `<span class="text-emerald"><i class="bi bi-check-circle-fill me-1"></i>Terhubung (UID: ${acc.uid})</span>`;
             if (indodaxBalElem) indodaxBalElem.innerText = `Saldo: Rp ${Number(acc.idr_balance || 0).toLocaleString('id-ID')}`;
@@ -167,7 +182,30 @@ async function fetchStatus() {
 
         // 3c. Account Balance & Floating PnL Display
         const positions = (data.account && data.account.positions) ? data.account.positions : [];
-        if (isLiveMode && data.indodax_account && data.indodax_account.status === 'success') {
+        if (isBybit && data.bybit_account && data.bybit_account.status === 'success') {
+            const bAcc = data.bybit_account;
+            const bal = Number(bAcc.total_wallet_balance || 0);
+            const upl = Number(bAcc.total_perp_upl || 0);
+            const eq = Number(bAcc.total_equity || bal);
+
+            document.getElementById('acc-balance').innerHTML = `$${bal.toFixed(2)} <span class="fs-6 text-muted font-normal">USDT</span>`;
+            document.getElementById('acc-balance-idr').innerText = `Rp ${(bal * 15500).toLocaleString('id-ID')} (Bybit Unified)`;
+
+            const pnlElem = document.getElementById('acc-floating');
+            if (upl > 0) {
+                pnlElem.className = 'kpi-value pnl-pos';
+                pnlElem.innerText = `+$${upl.toFixed(2)}`;
+            } else if (upl < 0) {
+                pnlElem.className = 'kpi-value pnl-neg';
+                pnlElem.innerText = `-$${Math.abs(upl).toFixed(2)}`;
+            } else {
+                pnlElem.className = 'kpi-value text-secondary';
+                pnlElem.innerText = `$0.00`;
+            }
+            document.getElementById('acc-equity').innerText = `Equity: $${eq.toFixed(2)}`;
+
+            renderPositions(positions);
+        } else if (isLiveMode && data.indodax_account && data.indodax_account.status === 'success') {
             const indodaxBal = Number(data.indodax_account.idr_balance) || 0;
             const livePositions = positions.filter(p => p.mode === 'live_indodax' || p.currency === 'IDR');
             const totalIdrPnl = livePositions.reduce((sum, p) => sum + (Number(p.profit) || 0), 0);
@@ -249,6 +287,20 @@ async function fetchStatus() {
         // 6. Config Values
         if (data.config) {
             const cfg = data.config;
+            if (document.getElementById('cfg-bybit-key') && !document.getElementById('cfg-bybit-key').value) {
+                document.getElementById('cfg-bybit-key').value = cfg.bybit_api_key || '';
+            }
+            if (document.getElementById('cfg-bybit-secret') && !document.getElementById('cfg-bybit-secret').value) {
+                document.getElementById('cfg-bybit-secret').value = cfg.bybit_api_secret || '';
+            }
+            if (document.getElementById('cfg-bybit-leverage') && !document.getElementById('cfg-bybit-leverage').getAttribute('data-loaded')) {
+                document.getElementById('cfg-bybit-leverage').value = cfg.bybit_leverage || 5;
+                document.getElementById('cfg-bybit-leverage').setAttribute('data-loaded', 'true');
+            }
+            if (document.getElementById('cfg-trade-margin-usdt') && !document.getElementById('cfg-trade-margin-usdt').getAttribute('data-loaded')) {
+                document.getElementById('cfg-trade-margin-usdt').value = cfg.trade_margin_usdt || 2.0;
+                document.getElementById('cfg-trade-margin-usdt').setAttribute('data-loaded', 'true');
+            }
             if (document.getElementById('cfg-indodax-key') && !document.getElementById('cfg-indodax-key').value) {
                 document.getElementById('cfg-indodax-key').value = cfg.indodax_api_key || '';
             }
@@ -457,12 +509,13 @@ function renderPositions(positions) {
 
     let html = '';
     positions.forEach(p => {
-        const isLive = (p.mode === 'live_indodax') || (p.currency === 'IDR');
+        const isBybit = (p.mode === 'live_bybit');
+        const isIndodax = (p.mode === 'live_indodax') || (p.currency === 'IDR');
         const profit = Number(p.profit) || 0;
         let pnlText = '$0.00';
         let pnlClass = 'pnl-zero';
 
-        if (isLive) {
+        if (isIndodax) {
             if (profit > 0) {
                 pnlText = `+Rp ${Math.round(profit).toLocaleString('id-ID')}`;
                 pnlClass = 'pnl-pos';
@@ -474,16 +527,20 @@ function renderPositions(positions) {
             }
         } else {
             if (profit > 0) {
-                pnlText = `+$${profit.toFixed(2)}`;
+                pnlText = `+$${profit.toFixed(4)}`;
                 pnlClass = 'pnl-pos';
             } else if (profit < 0) {
-                pnlText = `-$${Math.abs(profit).toFixed(2)}`;
+                pnlText = `-$${Math.abs(profit).toFixed(4)}`;
                 pnlClass = 'pnl-neg';
             }
         }
 
         let sideBadge = '';
-        if (isLive) {
+        if (isBybit) {
+            sideBadge = (p.type === 'BUY') 
+                ? `<span class="badge bg-success text-light border border-success"><i class="bi bi-arrow-up-right me-1"></i>LONG ${p.leverage || 5}x</span>`
+                : `<span class="badge bg-danger text-light border border-danger"><i class="bi bi-arrow-down-right me-1"></i>SHORT ${p.leverage || 5}x</span>`;
+        } else if (isIndodax) {
             sideBadge = (p.type === 'BUY') 
                 ? '<span class="badge bg-danger text-light border border-danger"><i class="bi bi-broadcast me-1"></i>REAL BUY</span>'
                 : '<span class="badge bg-warning text-dark border border-warning"><i class="bi bi-broadcast me-1"></i>REAL SELL</span>';
@@ -493,9 +550,9 @@ function renderPositions(positions) {
                 : '<span class="badge bg-danger-subtle text-danger border border-danger">SELL</span>';
         }
 
-        const priceOpenFmt = isLive ? `Rp ${Number(p.price_open).toLocaleString('id-ID')}` : `$${p.price_open}`;
-        const slFmt = isLive ? (p.sl ? `Rp ${Number(p.sl).toLocaleString('id-ID')}` : '--') : (p.sl ? `$${p.sl}` : '--');
-        const tpFmt = isLive ? (p.tp ? `Rp ${Number(p.tp).toLocaleString('id-ID')}` : '--') : (p.tp ? `$${p.tp}` : '--');
+        const priceOpenFmt = isIndodax ? `Rp ${Number(p.price_open).toLocaleString('id-ID')}` : `$${p.price_open}`;
+        const slFmt = isIndodax ? (p.sl ? `Rp ${Number(p.sl).toLocaleString('id-ID')}` : '--') : (p.sl ? `$${p.sl}` : '--');
+        const tpFmt = isIndodax ? (p.tp ? `Rp ${Number(p.tp).toLocaleString('id-ID')}` : '--') : (p.tp ? `$${p.tp}` : '--');
 
         html += `
             <tr>
@@ -592,6 +649,11 @@ async function stopBot() {
 
 async function saveConfig(e) {
     e.preventDefault();
+    const bybitKey = document.getElementById('cfg-bybit-key') ? document.getElementById('cfg-bybit-key').value.trim() : '';
+    const bybitSecret = document.getElementById('cfg-bybit-secret') ? document.getElementById('cfg-bybit-secret').value.trim() : '';
+    const bybitLeverage = parseInt(document.getElementById('cfg-bybit-leverage') ? document.getElementById('cfg-bybit-leverage').value : 5) || 5;
+    const tradeMargin = parseFloat(document.getElementById('cfg-trade-margin-usdt') ? document.getElementById('cfg-trade-margin-usdt').value : 2.0) || 2.0;
+
     const indodaxKey = document.getElementById('cfg-indodax-key') ? document.getElementById('cfg-indodax-key').value.trim() : '';
     const indodaxSecret = document.getElementById('cfg-indodax-secret') ? document.getElementById('cfg-indodax-secret').value.trim() : '';
     const tradingMode = document.getElementById('cfg-trading-mode') ? document.getElementById('cfg-trading-mode').value : 'paper';
@@ -604,6 +666,10 @@ async function saveConfig(e) {
     const symbols = symbolsRaw.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
 
     const payload = {
+        bybit_api_key: bybitKey,
+        bybit_api_secret: bybitSecret,
+        bybit_leverage: bybitLeverage,
+        trade_margin_usdt: tradeMargin,
         indodax_api_key: indodaxKey,
         indodax_secret_key: indodaxSecret,
         trading_mode: tradingMode,
@@ -626,6 +692,40 @@ async function saveConfig(e) {
         fetchStatus();
     } catch (err) {
         alert('Gagal menyimpan konfigurasi: ' + err);
+    }
+}
+
+async function testBybitConnection() {
+    const key = document.getElementById('cfg-bybit-key') ? document.getElementById('cfg-bybit-key').value.trim() : '';
+    const secret = document.getElementById('cfg-bybit-secret') ? document.getElementById('cfg-bybit-secret').value.trim() : '';
+    const alertBox = document.getElementById('bybit-test-alert');
+    const msgBox = document.getElementById('bybit-test-msg');
+
+    if (alertBox) alertBox.classList.remove('d-none');
+    if (msgBox) msgBox.innerHTML = '<span class="spinner-border spinner-border-sm text-warning me-1"></span> Menguji koneksi ke Bybit V5 API...';
+
+    try {
+        const res = await fetch('/api/bybit/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: key, secret_key: secret })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alertBox.className = 'alert alert-success border-success p-2 mb-3 small';
+            msgBox.innerHTML = `
+                <div class="fw-bold text-success mb-1"><i class="bi bi-check-circle-fill me-1"></i>Koneksi Bybit V5 Berhasil!</div>
+                <div>Total Ekuitas: <strong class="text-emerald">$${Number(data.total_equity || 0).toFixed(2)} USDT</strong> | Saldo Wallet: <strong>$${Number(data.total_wallet_balance || 0).toFixed(2)} USDT</strong></div>
+                <div class="mt-1 text-light">Saldo Tersedia: <strong class="text-warning">$${Number(data.total_available_balance || 0).toFixed(2)} USDT</strong> | Floating PnL: $${Number(data.total_perp_upl || 0).toFixed(2)}</div>
+            `;
+            fetchStatus();
+        } else {
+            alertBox.className = 'alert alert-danger border-danger p-2 mb-3 small';
+            msgBox.innerHTML = `<div class="fw-bold text-danger mb-1"><i class="bi bi-x-circle-fill me-1"></i>Gagal Terhubung ke Bybit</div><div>${data.message || JSON.stringify(data)}</div>`;
+        }
+    } catch (err) {
+        if (alertBox) alertBox.className = 'alert alert-danger border-danger p-2 mb-3 small';
+        if (msgBox) msgBox.innerHTML = `<strong>Error Request:</strong> ${err}`;
     }
 }
 

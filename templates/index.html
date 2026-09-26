@@ -435,18 +435,40 @@
                         <!-- Tab 3: Config Form -->
                         <div class="tab-pane fade" id="config-pane" role="tabpanel" style="display: none;">
                             <form id="config-form" onsubmit="saveConfig(event)">
+                                <!-- Bybit V5 API Configuration -->
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-5">
-                                        <label class="form-label text-warning"><i class="bi bi-key me-1"></i>Indodax API Key (V2)</label>
+                                        <label class="form-label text-warning"><i class="bi bi-lightning-charge me-1"></i>Bybit API Key (V5)</label>
+                                        <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-bybit-key" placeholder="cx3JLmU5...">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label text-warning"><i class="bi bi-shield-lock me-1"></i>Bybit API Secret (V5)</label>
+                                        <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-bybit-secret" placeholder="uJgxtBMb...">
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-warning btn-sm w-100 rounded-3 py-1" onclick="testBybitConnection()">
+                                            <i class="bi bi-plug me-1"></i> Tes Bybit
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="bybit-test-alert" class="alert alert-dark border-secondary p-2 mb-3 d-none small">
+                                    <div id="bybit-test-msg"></div>
+                                </div>
+
+                                <!-- Indodax V2 API Configuration -->
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-5">
+                                        <label class="form-label text-secondary"><i class="bi bi-key me-1"></i>Indodax API Key (V2)</label>
                                         <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-indodax-key" placeholder="46IBGDGA-...">
                                     </div>
                                     <div class="col-md-5">
-                                        <label class="form-label text-warning"><i class="bi bi-shield-lock me-1"></i>Indodax Secret Key (V2)</label>
+                                        <label class="form-label text-secondary"><i class="bi bi-shield-lock me-1"></i>Indodax Secret Key (V2)</label>
                                         <input type="password" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-indodax-secret" placeholder="ebc77ed...">
                                     </div>
                                     <div class="col-md-2 d-flex align-items-end">
-                                        <button type="button" class="btn btn-outline-warning btn-sm w-100 rounded-3 py-1" onclick="testIndodaxConnection()">
-                                            <i class="bi bi-plug me-1"></i> Tes Akun
+                                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 rounded-3 py-1" onclick="testIndodaxConnection()">
+                                            <i class="bi bi-plug me-1"></i> Tes Indodax
                                         </button>
                                     </div>
                                 </div>
@@ -456,14 +478,23 @@
                                 </div>
 
                                 <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <label class="form-label text-info"><i class="bi bi-toggles me-1"></i>Mode Eksekusi Trading</label>
                                         <select class="form-select form-select-sm bg-dark text-light border-info rounded-3" id="cfg-trading-mode">
-                                            <option value="paper" selected>Paper Trading (Simulasi Virtual $10.000 USDT) [Aman]</option>
-                                            <option value="live_indodax">Live Indodax Trading (Order Riil Akun Indodax)</option>
+                                            <option value="live_bybit" selected>⚡ Live Bybit Futures (2 Arah: BUY/Long & SELL/Short USDT)</option>
+                                            <option value="live_indodax">Live Indodax Trading (Spot Market IDR)</option>
+                                            <option value="paper">Paper Trading (Simulasi Virtual $10.000 USDT)</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-2">
+                                        <label class="form-label text-warning">Bybit Leverage</label>
+                                        <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-bybit-leverage" value="5" min="1" max="25">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label text-warning">Margin/Trade ($ USDT)</label>
+                                        <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary rounded-3" id="cfg-trade-margin-usdt" value="2.0" step="0.5" min="1.0">
+                                    </div>
+                                    <div class="col-md-3">
                                         <label class="form-label">Timeframe Analisis</label>
                                         <select class="form-select form-select-sm bg-dark text-light border-secondary rounded-3" id="cfg-timeframe">
                                             <option value="1m">1 Menit (Scalping Ultra)</option>

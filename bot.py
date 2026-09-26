@@ -336,6 +336,32 @@ def bot_trading_cycle():
 
                         else:
                             logging.warning("[INDODAX] Mode Live dipilih namun API Key belum diisi. Order dilewati.")
+                    elif trading_mode == "live_bybit":
+                        bybit_key = config_data.get("bybit_api_key")
+                        bybit_sec = config_data.get("bybit_api_secret")
+                        if bybit_key and bybit_sec:
+                            target_margin = float(config_data.get("trade_margin_usdt", 2.0))
+                            leverage = int(config_data.get("bybit_leverage", 5))
+
+                            # Both BUY (Long) and SELL (Short) are fully supported!
+                            order_res = exchange_api.execute_bybit_order(
+                                symbol=symbol,
+                                side=sig,
+                                target_margin_usdt=target_margin,
+                                leverage=leverage,
+                                tp_price=tp,
+                                sl_price=sl,
+                                current_price=entry,
+                                api_key=bybit_key,
+                                secret_key=bybit_sec
+                            )
+                            if order_res.get("status") == "success":
+                                order_id = order_res.get("order_id", "")
+                                logging.info(f"[BYBIT REAL] Order {sig} #{order_id} ({symbol}, {leverage}x Lev, Margin ${target_margin}) sukses dikirim ke Bybit!")
+                            else:
+                                logging.error(f"[BYBIT ORDER ERROR] {symbol} {sig}: {order_res.get('message')}")
+                        else:
+                            logging.warning("[BYBIT] Mode Live Bybit dipilih namun API Key belum diatur.")
                     else:
                         exchange_api.execute_paper_order(symbol, sig, trade_amount, entry, sl, tp)
 

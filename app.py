@@ -71,12 +71,18 @@ def api_status():
             config.get("indodax_secret_key")
         )
 
+    # Bybit Real Account info if configured
+    bybit_status = {}
+    if config.get("bybit_api_key") and config.get("bybit_api_secret"):
+        bybit_status = exchange_api.get_bybit_wallet_balance()
+
     return jsonify({
         "bot_running": bot.bot_running,
         "license_valid": is_valid,
         "license_message": msg,
         "account": paper_status,
         "indodax_account": indodax_status,
+        "bybit_account": bybit_status,
         "config": config,
         "selected_symbol": current_symbol,
         "logs": list(bot.log_history),
@@ -146,6 +152,27 @@ def api_indodax_sync_wallet():
         return jsonify({
             "status": "success",
             "message": f"Berhasil menyinkronkan {len(positions)} aset dari dompet Indodax.",
+            "positions": positions
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/bybit/test", methods=["POST"])
+def api_bybit_test():
+    data = request.json or {}
+    cfg = bot.load_config()
+    api_key = data.get("api_key") or cfg.get("bybit_api_key")
+    secret_key = data.get("secret_key") or cfg.get("bybit_api_secret")
+    res = exchange_api.get_bybit_wallet_balance(api_key, secret_key)
+    return jsonify(res)
+
+@app.route("/api/bybit/sync-wallet", methods=["POST"])
+def api_bybit_sync_wallet():
+    try:
+        positions = exchange_api.sync_bybit_positions()
+        return jsonify({
+            "status": "success",
+            "message": f"Berhasil menyinkronkan {len(positions)} posisi dari Bybit.",
             "positions": positions
         })
     except Exception as e:

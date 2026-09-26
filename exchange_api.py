@@ -12,6 +12,7 @@ import requests
 import datetime
 import pandas as pd
 import numpy as np
+import urllib.parse
 
 # Persistence files
 POSITIONS_FILE = os.path.join(os.path.dirname(__file__), "active_positions.json")
@@ -374,13 +375,15 @@ def sync_indodax_wallet_positions():
 
 def update_paper_positions():
     """
-    Updates current price and floating PnL for open positions (paper & live Indodax).
+    Updates current price and floating PnL for open positions (paper, live Indodax, live Bybit).
     Automatically closes positions when Take Profit or Stop Loss is reached.
     """
     cfg = _load_app_config()
-    is_live_mode = cfg.get("trading_mode") == "live_indodax"
+    current_mode = cfg.get("trading_mode", "paper")
 
-    if is_live_mode:
+    if current_mode == "live_bybit":
+        return sync_bybit_positions()
+    elif current_mode == "live_indodax":
         sync_indodax_wallet_positions()
 
     if not paper_portfolio["positions"]:
@@ -473,7 +476,22 @@ def get_paper_account_status():
     update_paper_positions()
     total_profit = sum(p.get("profit", 0.0) for p in paper_portfolio["positions"])
     cfg = _load_app_config()
-    is_live_mode = cfg.get("trading_mode") == "live_indodax"
+    current_mode = cfg.get("trading_mode", "paper")
+    if current_mode == "live_bybit":
+        w = get_bybit_wallet_balance()
+        bal = w.get("total_wallet_balance", 0.0) if w.get("status") == "success" else 0.0
+        eq = w.get("total_equity", bal) if w.get("status") == "success" else bal
+        upl = w.get("total_perp_upl", 0.0) if w.get("status") == "success" else 0.0
+        return {
+            "balance": bal,
+            "balance_idr": round(bal * 15500, 0),
+            "equity": eq,
+            "floating_profit": upl,
+            "mode": "Live Bybit Futures (Real)",
+            "exchange": "Bybit Linear USDT Perpetual (5x)",
+            "positions": paper_portfolio["positions"]
+        }
+    is_live_mode = current_mode == "live_indodax"
     return {
         "balance": paper_portfolio["balance_usdt"],
         "balance_idr": paper_portfolio["balance_idr"],
@@ -507,12 +525,19 @@ def execute_paper_order(symbol, side, amount, entry_price, sl_price, tp_price):
 
 def close_paper_position(ticket):
     global paper_portfolio
+    cfg = _load_app_config()
+    current_mode = cfg.get("trading_mode", "paper")
     for i, pos in enumerate(paper_portfolio["positions"]):
         if str(pos.get("ticket", "")) == str(ticket):
             profit = float(pos.get("profit", 0.0))
-            is_live = pos.get("mode") == "live_indodax"
-            if is_live:
-                cfg = _load_app_config()
+            is_live_bybit = pos.get("mode") == "live_bybit" or current_mode == "live_bybit"
+            is_live_indodax = pos.get("mode") == "live_indodax"
+            if is_live_bybit:
+                sym = pos.get("symbol", "")
+                side = pos.get("type", "BUY")
+                amount = float(pos.get("amount", 0.0))
+                close_bybit_position(sym, side, amount, cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
+            elif is_live_indodax:
                 sym = pos.get("symbol", "")
                 coin = sym.replace("IDR", "").replace("USDT", "")
                 safe_qty = get_safe_sell_quantity(coin, float(pos.get("amount", 0.0)), cfg.get("indodax_api_key"), cfg.get("indodax_secret_key"))
@@ -531,19 +556,23 @@ def close_paper_position(ticket):
 def close_all_paper_positions():
     global paper_portfolio
     cfg = _load_app_config()
+    current_mode = cfg.get("trading_mode", "paper")
     total_closed = len(paper_portfolio["positions"])
-    for pos in list(paper_portfolio["positions"]):
-        if pos.get("mode") == "live_indodax":
-            sym = pos.get("symbol", "")
-            coin = sym.replace("IDR", "").replace("USDT", "")
-            safe_qty = get_safe_sell_quantity(coin, float(pos.get("amount", 0.0)), cfg.get("indodax_api_key"), cfg.get("indodax_secret_key"))
-            if safe_qty > 0:
-                logging.info(f"[INDODAX CLOSE ALL] Menjual {coin} (Qty: {safe_qty}) di pasar Indodax...")
-                execute_indodax_order(sym, "SELL", 0, safe_qty, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
-        else:
-            profit = float(pos.get("profit", 0.0))
-            paper_portfolio["balance_usdt"] += profit
-            record_paper_history(pos, pos.get("price_current", pos.get("price_open")), profit, reason="CLOSE ALL")
+    if current_mode == "live_bybit":
+        close_all_bybit_positions(cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
+    else:
+        for pos in list(paper_portfolio["positions"]):
+            if pos.get("mode") == "live_indodax":
+                sym = pos.get("symbol", "")
+                coin = sym.replace("IDR", "").replace("USDT", "")
+                safe_qty = get_safe_sell_quantity(coin, float(pos.get("amount", 0.0)), cfg.get("indodax_api_key"), cfg.get("indodax_secret_key"))
+                if safe_qty > 0:
+                    logging.info(f"[INDODAX CLOSE ALL] Menjual {coin} (Qty: {safe_qty}) di pasar Indodax...")
+                    execute_indodax_order(sym, "SELL", 0, safe_qty, order_type="MARKET", api_key=cfg.get("indodax_api_key"), secret_key=cfg.get("indodax_secret_key"))
+            else:
+                profit = float(pos.get("profit", 0.0))
+                paper_portfolio["balance_usdt"] += profit
+                record_paper_history(pos, pos.get("price_current", pos.get("price_open")), profit, reason="CLOSE ALL")
     paper_portfolio["positions"] = []
     save_positions_to_disk()
     logging.info(f"Closed all {total_closed} active positions.")
@@ -652,7 +681,9 @@ def get_indodax_trade_history(limit=100):
 def get_trade_history(mode=None, limit=100):
     cfg = _load_app_config()
     current_mode = mode or cfg.get("trading_mode", "paper")
-    if current_mode == "live_indodax":
+    if current_mode == "live_bybit":
+        return get_bybit_trade_history(limit=limit)
+    elif current_mode == "live_indodax":
         return get_indodax_trade_history(limit=limit)
     else:
         history = []
@@ -790,4 +821,302 @@ def execute_indodax_order(symbol, side, price, quantity, order_type="LIMIT", api
     except Exception as e:
         logging.error(f"[INDODAX ORDER EXCEPTION] {e}")
         return {"status": "error", "message": str(e)}
+
+
+# ============================================================
+# BYBIT V5 UNIFIED TRADING & FUTURES (LINEAR USDT PERPETUAL) CONNECTOR
+# ============================================================
+
+BYBIT_BASE_URL = "https://api.bybit-global.com"
+_bybit_wallet_cache = {}
+
+def _bybit_request(method, endpoint, params=None, body=None, api_key=None, secret_key=None):
+    cfg = _load_app_config()
+    k = api_key or cfg.get("bybit_api_key")
+    s = secret_key or cfg.get("bybit_api_secret")
+    if not k or not s:
+        return {"retCode": -1, "retMsg": "Bybit API Key / Secret belum diatur."}
+
+    url = f"{BYBIT_BASE_URL}{endpoint}"
+    ts = str(int(time.time() * 1000))
+    recv_window = "5000"
+
+    query_str = ""
+    if params:
+        query_str = urllib.parse.urlencode(params)
+        url = f"{url}?{query_str}"
+
+    body_json = ""
+    if body:
+        body_json = json.dumps(body)
+
+    param_to_sign = ts + k + recv_window + (body_json if method.upper() == "POST" else query_str)
+    sig = hmac.new(s.encode("utf-8"), param_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    headers = {
+        "X-BAPI-API-KEY": k,
+        "X-BAPI-SIGN": sig,
+        "X-BAPI-TIMESTAMP": ts,
+        "X-BAPI-RECV-WINDOW": recv_window,
+        "Content-Type": "application/json"
+    }
+
+    try:
+        if method.upper() == "POST":
+            res = requests.post(url, headers=headers, data=body_json, timeout=10, verify=False)
+        else:
+            res = requests.get(url, headers=headers, timeout=10, verify=False)
+        return res.json()
+    except Exception as e:
+        logging.error(f"[BYBIT HTTP EXCEPTION] {endpoint}: {e}")
+        return {"retCode": -1, "retMsg": str(e)}
+
+def get_bybit_wallet_balance(api_key=None, secret_key=None):
+    global _bybit_wallet_cache
+    now = time.time()
+    if _bybit_wallet_cache.get("timestamp") and (now - _bybit_wallet_cache["timestamp"] < 3.0):
+        return _bybit_wallet_cache["data"]
+
+    res = _bybit_request("GET", "/v5/account/wallet-balance", params={"accountType": "UNIFIED"}, api_key=api_key, secret_key=secret_key)
+    if res.get("retCode") == 0:
+        lst = res.get("result", {}).get("list", [])
+        if lst:
+            acc = lst[0]
+            total_equity = float(acc.get("totalEquity", 0.0) or 0.0)
+            wallet_balance = float(acc.get("totalWalletBalance", 0.0) or 0.0)
+            avail_balance = float(acc.get("totalAvailableBalance", 0.0) or 0.0)
+            unrealised_pnl = float(acc.get("totalPerpUPL", 0.0) or 0.0)
+            coin_list = acc.get("coin", [])
+            data = {
+                "status": "success",
+                "total_equity": round(total_equity, 2),
+                "total_wallet_balance": round(wallet_balance, 2),
+                "total_available_balance": round(avail_balance, 2),
+                "total_perp_upl": round(unrealised_pnl, 2),
+                "coins": coin_list
+            }
+            _bybit_wallet_cache["timestamp"] = now
+            _bybit_wallet_cache["data"] = data
+            return data
+    return {"status": "error", "message": res.get("retMsg", "Gagal mengambil saldo Bybit.")}
+
+def get_bybit_positions(category="linear", symbol=None, api_key=None, secret_key=None):
+    params = {"category": category, "settleCoin": "USDT"}
+    if symbol:
+        params["symbol"] = symbol
+    res = _bybit_request("GET", "/v5/position/list", params=params, api_key=api_key, secret_key=secret_key)
+    if res.get("retCode") == 0:
+        return res.get("result", {}).get("list", [])
+    return []
+
+def set_bybit_leverage(symbol, leverage=5, api_key=None, secret_key=None):
+    body = {
+        "category": "linear",
+        "symbol": symbol,
+        "buyLeverage": str(leverage),
+        "sellLeverage": str(leverage)
+    }
+    res = _bybit_request("POST", "/v5/position/set-leverage", body=body, api_key=api_key, secret_key=secret_key)
+    if res.get("retCode") in [0, 110043]:
+        return True
+    return False
+
+def format_bybit_qty(symbol, notional_usdt, price):
+    raw_qty = notional_usdt / price
+    s = symbol.upper()
+    if "XRP" in s:
+        return str(max(0.1, round(raw_qty, 1)))
+    elif "DOGE" in s:
+        return str(max(1, int(round(raw_qty))))
+    elif "SOL" in s:
+        return str(max(0.1, round(raw_qty, 1)))
+    elif "SUI" in s:
+        return str(max(10, int(round(raw_qty / 10.0)) * 10))
+    elif "BTC" in s:
+        return str(max(0.001, round(raw_qty, 3)))
+    elif "ETH" in s:
+        return str(max(0.01, round(raw_qty, 2)))
+    return str(round(raw_qty, 2))
+
+def execute_bybit_order(symbol, side, target_margin_usdt=2.0, leverage=5, tp_price=None, sl_price=None, current_price=None, order_type="Market", api_key=None, secret_key=None):
+    """
+    Executes a Bybit Linear USDT Perpetual order with automatic leverage and TP/SL.
+    Supports BOTH 'BUY' (Long) and 'SELL' (Short)!
+    """
+    cfg = _load_app_config()
+    k = api_key or cfg.get("bybit_api_key")
+    s = secret_key or cfg.get("bybit_api_secret")
+    if not k or not s:
+        return {"status": "error", "message": "Bybit API Key / Secret belum diatur."}
+
+    # 1. Set leverage
+    set_bybit_leverage(symbol, leverage, api_key=k, secret_key=s)
+
+    # 2. Get price
+    price = current_price
+    if not price or price <= 0:
+        ticker = get_ticker_price(symbol)
+        price = float(ticker.get("last_price", 0.0))
+    if price <= 0:
+        return {"status": "error", "message": f"Gagal mendapatkan harga live untuk {symbol}"}
+
+    # 3. Target notional: Bybit requires min 5.0 USDT notional
+    notional = max(5.5, float(target_margin_usdt) * float(leverage))
+    qty_str = format_bybit_qty(symbol, notional, price)
+
+    bybit_side = "Buy" if side.upper() == "BUY" else "Sell"
+    body = {
+        "category": "linear",
+        "symbol": symbol,
+        "side": bybit_side,
+        "orderType": order_type,
+        "qty": qty_str,
+        "positionIdx": 0
+    }
+
+    if tp_price and float(tp_price) > 0:
+        body["takeProfit"] = str(round(float(tp_price), 4))
+    if sl_price and float(sl_price) > 0:
+        body["stopLoss"] = str(round(float(sl_price), 4))
+    if body.get("takeProfit") or body.get("stopLoss"):
+        body["tpslMode"] = "Full"
+
+    res = _bybit_request("POST", "/v5/order/create", body=body, api_key=k, secret_key=s)
+    if res.get("retCode") == 0:
+        order_id = res.get("result", {}).get("orderId", "")
+        logging.info(f"[BYBIT ORDER] Sukses {bybit_side} {symbol} (Qty: {qty_str}, TP: {body.get('takeProfit')}, SL: {body.get('stopLoss')}): #{order_id}")
+        return {"status": "success", "order_id": order_id, "data": res.get("result")}
+    else:
+        err_msg = res.get("retMsg", "Gagal eksekusi order Bybit")
+        logging.error(f"[BYBIT ORDER ERROR] {symbol} {bybit_side}: {err_msg}")
+        return {"status": "error", "message": err_msg, "code": res.get("retCode")}
+
+def close_bybit_position(symbol, side, qty, api_key=None, secret_key=None):
+    close_side = "Sell" if str(side).upper() == "BUY" else "Buy"
+    body = {
+        "category": "linear",
+        "symbol": symbol,
+        "side": close_side,
+        "orderType": "Market",
+        "qty": str(qty),
+        "reduceOnly": True,
+        "positionIdx": 0
+    }
+    res = _bybit_request("POST", "/v5/order/create", body=body, api_key=api_key, secret_key=secret_key)
+    if res.get("retCode") == 0:
+        logging.info(f"[BYBIT MANUAL CLOSE] Sukses menutup posisi {symbol} ({qty} {close_side})")
+        return True
+    logging.error(f"[BYBIT CLOSE ERROR] {symbol}: {res.get('retMsg')}")
+    return False
+
+def close_all_bybit_positions(api_key=None, secret_key=None):
+    raw_pos = get_bybit_positions(api_key=api_key, secret_key=secret_key)
+    closed = 0
+    for p in raw_pos:
+        size = float(p.get("size", 0))
+        if size > 0:
+            sym = p.get("symbol")
+            side = p.get("side")
+            if close_bybit_position(sym, side, size, api_key=api_key, secret_key=secret_key):
+                closed += 1
+    return closed
+
+def sync_bybit_positions():
+    cfg = _load_app_config()
+    k = cfg.get("bybit_api_key")
+    s = cfg.get("bybit_api_secret")
+    if not k or not s:
+        return paper_portfolio.get("positions", [])
+
+    raw_pos = get_bybit_positions(api_key=k, secret_key=s)
+    mapped = []
+    for p in raw_pos:
+        size = float(p.get("size", 0))
+        if size <= 0:
+            continue
+        sym = p.get("symbol", "")
+        side = "BUY" if p.get("side") == "Buy" else "SELL"
+        avg_price = float(p.get("avgPrice", 0))
+        mark_price = float(p.get("markPrice", avg_price))
+        pnl = float(p.get("unrealisedPnl", 0))
+        lev = int(p.get("leverage", 5))
+        tp = float(p.get("takeProfit") or 0)
+        sl = float(p.get("stopLoss") or 0)
+
+        mapped.append({
+            "ticket": f"bybit-{sym}-{side.lower()}",
+            "symbol": sym,
+            "type": side,
+            "amount": size,
+            "price_open": avg_price,
+            "price_current": mark_price,
+            "profit": round(pnl, 4),
+            "currency": "USDT",
+            "mode": "live_bybit",
+            "leverage": lev,
+            "tp": tp,
+            "sl": sl,
+            "time": int(p.get("updatedTime") or (time.time() * 1000))
+        })
+
+    paper_portfolio["positions"] = mapped
+    save_positions_to_disk()
+    return mapped
+
+def get_bybit_trade_history(limit=50):
+    cfg = _load_app_config()
+    k = cfg.get("bybit_api_key")
+    s = cfg.get("bybit_api_secret")
+    if not k or not s:
+        return {"status": "unconfigured", "message": "Bybit API Key belum diatur."}
+
+    res = _bybit_request("GET", "/v5/execution/list", params={"category": "linear", "limit": str(limit)}, api_key=k, secret_key=s)
+    if res.get("retCode") != 0:
+        return {"status": "error", "message": res.get("retMsg", "Gagal mengambil riwayat transaksi Bybit.")}
+
+    raw_list = res.get("result", {}).get("list", [])
+    trades = []
+    total_buy_vol = 0.0
+    total_sell_vol = 0.0
+    total_realized_pnl = 0.0
+
+    for t in raw_list:
+        exec_qty = float(t.get("execQty", 0))
+        exec_price = float(t.get("execPrice", 0))
+        exec_fee = float(t.get("execFee", 0))
+        exec_val = float(t.get("execValue", exec_qty * exec_price))
+        side = "BUY" if t.get("side") == "Buy" else "SELL"
+        pnl = float(t.get("closedPnl", 0))
+        total_realized_pnl += pnl
+
+        if side == "BUY":
+            total_buy_vol += exec_val
+        else:
+            total_sell_vol += exec_val
+
+        ts = int(t.get("execTime", time.time() * 1000))
+        trades.append({
+            "order_id": t.get("orderId", ""),
+            "symbol": t.get("symbol", ""),
+            "side": side,
+            "amount": exec_qty,
+            "price": exec_price,
+            "quote_qty": round(exec_val, 2),
+            "fee": exec_fee,
+            "pnl": round(pnl, 4),
+            "currency": "USDT",
+            "mode": "live_bybit",
+            "time": ts,
+            "datetime": datetime.datetime.fromtimestamp(ts / 1000).strftime("%d/%m/%Y %H:%M:%S")
+        })
+
+    summary = {
+        "total_trades": len(trades),
+        "total_buy_volume_usdt": round(total_buy_vol, 2),
+        "total_sell_volume_usdt": round(total_sell_vol, 2),
+        "total_realized_profit_usdt": round(total_realized_pnl, 4),
+        "mode": "live_bybit"
+    }
+    return {"status": "success", "history": trades, "summary": summary}
+
 
