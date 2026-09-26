@@ -417,20 +417,42 @@ function renderTradeHistorySummary(s) {
     const elSell = document.getElementById('hist-sell-vol');
     const elPnl = document.getElementById('hist-realized-pnl');
 
-    if (elTotal) elTotal.innerText = `${s.total_trades || 0} Order`;
-    if (elBuy) elBuy.innerText = `Rp ${Number(s.total_buy_volume_idr || 0).toLocaleString('id-ID')}`;
-    if (elSell) elSell.innerText = `Rp ${Number(s.total_sell_volume_idr || 0).toLocaleString('id-ID')}`;
-    if (elPnl) {
-        const pnl = Number(s.total_realized_profit_idr !== undefined ? s.total_realized_profit_idr : s.total_realized_profit) || 0;
-        if (pnl > 0) {
-            elPnl.className = 'fw-bold fs-6 text-emerald';
-            elPnl.innerText = `+Rp ${Math.round(pnl).toLocaleString('id-ID')}`;
-        } else if (pnl < 0) {
-            elPnl.className = 'fw-bold fs-6 text-rose';
-            elPnl.innerText = `-Rp ${Math.abs(Math.round(pnl)).toLocaleString('id-ID')}`;
-        } else {
-            elPnl.className = 'fw-bold fs-6 text-secondary';
-            elPnl.innerText = `Rp 0`;
+    const isUSDT = (s.mode === 'live_bybit' || s.currency === 'USDT');
+
+    if (elTotal) elTotal.innerText = `${s.total_trades || 0} Posisi`;
+    
+    if (isUSDT) {
+        const totalVol = Number(s.total_volume_usdt || s.total_buy_volume_usdt || 0);
+        if (elBuy) elBuy.innerText = `$${totalVol.toFixed(2)} USDT`;
+        if (elSell) elSell.innerText = `Bybit Futures 5x`;
+        if (elPnl) {
+            const pnl = Number(s.total_realized_profit_usdt !== undefined ? s.total_realized_profit_usdt : s.total_realized_profit) || 0;
+            if (pnl > 0) {
+                elPnl.className = 'fw-bold fs-6 text-emerald';
+                elPnl.innerText = `+$${pnl.toFixed(4)} USDT`;
+            } else if (pnl < 0) {
+                elPnl.className = 'fw-bold fs-6 text-rose';
+                elPnl.innerText = `-$${Math.abs(pnl).toFixed(4)} USDT`;
+            } else {
+                elPnl.className = 'fw-bold fs-6 text-secondary';
+                elPnl.innerText = `$0.00 USDT`;
+            }
+        }
+    } else {
+        if (elBuy) elBuy.innerText = `Rp ${Number(s.total_buy_volume_idr || 0).toLocaleString('id-ID')}`;
+        if (elSell) elSell.innerText = `Rp ${Number(s.total_sell_volume_idr || 0).toLocaleString('id-ID')}`;
+        if (elPnl) {
+            const pnl = Number(s.total_realized_profit_idr !== undefined ? s.total_realized_profit_idr : s.total_realized_profit) || 0;
+            if (pnl > 0) {
+                elPnl.className = 'fw-bold fs-6 text-emerald';
+                elPnl.innerText = `+Rp ${Math.round(pnl).toLocaleString('id-ID')}`;
+            } else if (pnl < 0) {
+                elPnl.className = 'fw-bold fs-6 text-rose';
+                elPnl.innerText = `-Rp ${Math.abs(Math.round(pnl)).toLocaleString('id-ID')}`;
+            } else {
+                elPnl.className = 'fw-bold fs-6 text-secondary';
+                elPnl.innerText = `Rp 0`;
+            }
         }
     }
 }
@@ -456,39 +478,61 @@ function renderTradeHistory(trades) {
 
     let html = '';
     filtered.forEach(t => {
+        const isUSDT = (t.mode === 'live_bybit' || t.currency === 'USDT');
         const isBuy = t.side === 'BUY';
-        const sideBadge = isBuy
-            ? '<span class="badge bg-success-subtle text-emerald border border-success px-2 py-1"><i class="bi bi-arrow-down-left me-1"></i>BUY</span>'
-            : '<span class="badge bg-danger-subtle text-rose border border-danger px-2 py-1"><i class="bi bi-arrow-up-right me-1"></i>SELL</span>';
+        let sideBadge = '';
+        if (isUSDT) {
+            sideBadge = isBuy
+                ? '<span class="badge bg-success-subtle text-emerald border border-success px-2 py-1"><i class="bi bi-arrow-up-right me-1"></i>BUY / LONG</span>'
+                : '<span class="badge bg-danger-subtle text-rose border border-danger px-2 py-1"><i class="bi bi-arrow-down-right me-1"></i>SELL / SHORT</span>';
+        } else {
+            sideBadge = isBuy
+                ? '<span class="badge bg-success-subtle text-emerald border border-success px-2 py-1"><i class="bi bi-arrow-down-left me-1"></i>BUY</span>'
+                : '<span class="badge bg-danger-subtle text-rose border border-danger px-2 py-1"><i class="bi bi-arrow-up-right me-1"></i>SELL</span>';
+        }
 
         const pnlVal = Number(t.pnl) || 0;
         let pnlText = '-';
         let pnlClass = 'text-muted';
-        if (!isBuy) {
-            if (pnlVal > 0) {
-                pnlText = `+Rp ${Math.round(pnlVal).toLocaleString('id-ID')}`;
-                pnlClass = 'text-emerald fw-bold';
-            } else if (pnlVal < 0) {
-                pnlText = `-Rp ${Math.abs(Math.round(pnlVal)).toLocaleString('id-ID')}`;
-                pnlClass = 'text-rose fw-bold';
-            } else {
-                pnlText = 'Rp 0';
-                pnlClass = 'text-secondary';
-            }
+        
+        if (pnlVal > 0) {
+            pnlText = isUSDT ? `+$${pnlVal.toFixed(4)}` : `+Rp ${Math.round(pnlVal).toLocaleString('id-ID')}`;
+            pnlClass = 'text-emerald fw-bold';
+        } else if (pnlVal < 0) {
+            pnlText = isUSDT ? `-$${Math.abs(pnlVal).toFixed(4)}` : `-Rp ${Math.abs(Math.round(pnlVal)).toLocaleString('id-ID')}`;
+            pnlClass = 'text-rose fw-bold';
+        } else {
+            pnlText = isUSDT ? '$0.00' : 'Rp 0';
+            pnlClass = 'text-secondary';
         }
 
-        const priceFmt = `Rp ${Number(t.price).toLocaleString('id-ID')}`;
-        const totalFmt = `Rp ${Number(t.quote_qty || (t.price * t.qty)).toLocaleString('id-ID')}`;
+        let priceFmt = '';
+        if (isUSDT) {
+            if (t.price_entry && t.price_entry > 0) {
+                priceFmt = `<span class="text-secondary small">$${t.price_entry}</span> <i class="bi bi-arrow-right text-warning mx-1" style="font-size:0.68rem;"></i> <strong class="text-light">$${t.price}</strong>`;
+            } else {
+                priceFmt = `$${Number(t.price).toFixed(t.price < 1 ? 4 : 2)}`;
+            }
+        } else {
+            priceFmt = `Rp ${Number(t.price).toLocaleString('id-ID')}`;
+        }
+
+        const totalFmt = isUSDT
+            ? `$${Number(t.quote_qty || 0).toFixed(2)}`
+            : `Rp ${Number(t.quote_qty || (t.price * t.qty)).toLocaleString('id-ID')}`;
+
+        const qtyVal = Number(t.amount !== undefined ? t.amount : t.qty) || 0;
+        const qtyFmt = qtyVal < 1 ? qtyVal.toFixed(4) : qtyVal.toFixed(2);
 
         html += `
             <tr>
                 <td class="font-mono text-muted small">${t.datetime || '--'}</td>
-                <td class="font-mono text-light fw-semibold">#${t.order_id || '--'}</td>
+                <td class="font-mono text-light fw-semibold small">#${String(t.order_id || '').substring(0, 10)}...</td>
                 <td>
                     <span class="fw-bold text-light">${t.symbol}</span>
                 </td>
                 <td>${sideBadge}</td>
-                <td class="font-mono">${Number(t.qty).toFixed(t.qty < 1 ? 6 : 4)}</td>
+                <td class="font-mono">${qtyFmt}</td>
                 <td class="font-mono">${priceFmt}</td>
                 <td class="font-mono fw-semibold">${totalFmt}</td>
                 <td class="font-mono"><span class="${pnlClass}">${pnlText}</span></td>

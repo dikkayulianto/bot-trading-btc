@@ -367,20 +367,20 @@
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
-                                        <div class="small text-secondary" style="font-size:0.7rem;">TOTAL VOLUME BELI</div>
-                                        <div class="fw-bold text-emerald fs-6" id="hist-buy-vol">Rp 0</div>
+                                        <div class="small text-secondary" style="font-size:0.7rem;" id="hist-buy-label">TOTAL VOLUME</div>
+                                        <div class="fw-bold text-emerald fs-6" id="hist-buy-vol">$0.00</div>
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
-                                        <div class="small text-secondary" style="font-size:0.7rem;">TOTAL VOLUME JUAL</div>
-                                        <div class="fw-bold text-info fs-6" id="hist-sell-vol">Rp 0</div>
+                                        <div class="small text-secondary" style="font-size:0.7rem;" id="hist-sell-label">EXCHANGE / MODE</div>
+                                        <div class="fw-bold text-info fs-6" id="hist-sell-vol">Bybit Futures</div>
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
                                     <div class="p-2 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
                                         <div class="small text-secondary" style="font-size:0.7rem;">EST. REALIZED PnL</div>
-                                        <div class="fw-bold fs-6 text-light" id="hist-realized-pnl">Rp 0</div>
+                                        <div class="fw-bold fs-6 text-light" id="hist-realized-pnl">$0.00</div>
                                     </div>
                                 </div>
                             </div>
@@ -390,9 +390,9 @@
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="small text-secondary"><i class="bi bi-funnel me-1"></i>Filter:</span>
                                     <select id="hist-filter" class="form-select form-select-sm bg-dark text-light border-secondary rounded-pill px-3 py-1" style="width: auto; font-size: 0.75rem;" onchange="applyHistoryFilter(this.value)">
-                                        <option value="ALL">Semua Transaksi</option>
-                                        <option value="BUY">Order Beli (BUY)</option>
-                                        <option value="SELL">Order Jual (SELL)</option>
+                                        <option value="ALL">Semua Posisi</option>
+                                        <option value="BUY">Posisi BUY (Long)</option>
+                                        <option value="SELL">Posisi SELL (Short)</option>
                                     </select>
                                 </div>
                                 <button class="btn btn-sm btn-outline-info rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="fetchTradeHistory(true)">
@@ -410,7 +410,7 @@
                                             <th>Pair</th>
                                             <th>Tipe</th>
                                             <th>Jumlah Koin</th>
-                                            <th>Harga Eksekusi</th>
+                                            <th>Harga (Entry → Exit)</th>
                                             <th>Total Nilai</th>
                                             <th>Realized PnL</th>
                                         </tr>

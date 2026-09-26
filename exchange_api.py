@@ -1070,51 +1070,54 @@ def get_bybit_trade_history(limit=50):
     if not k or not s:
         return {"status": "unconfigured", "message": "Bybit API Key belum diatur."}
 
-    res = _bybit_request("GET", "/v5/execution/list", params={"category": "linear", "limit": str(limit)}, api_key=k, secret_key=s)
+    # 1. Fetch real closed PnL from Bybit (GET /v5/position/closed-pnl)
+    res = _bybit_request("GET", "/v5/position/closed-pnl", params={"category": "linear", "limit": str(limit)}, api_key=k, secret_key=s)
     if res.get("retCode") != 0:
         return {"status": "error", "message": res.get("retMsg", "Gagal mengambil riwayat transaksi Bybit.")}
 
     raw_list = res.get("result", {}).get("list", [])
     trades = []
-    total_buy_vol = 0.0
-    total_sell_vol = 0.0
     total_realized_pnl = 0.0
+    total_volume = 0.0
 
     for t in raw_list:
-        exec_qty = float(t.get("execQty", 0))
-        exec_price = float(t.get("execPrice", 0))
-        exec_fee = float(t.get("execFee", 0))
-        exec_val = float(t.get("execValue", exec_qty * exec_price))
-        side = "BUY" if t.get("side") == "Buy" else "SELL"
         pnl = float(t.get("closedPnl", 0))
         total_realized_pnl += pnl
+        qty = float(t.get("qty", 0))
+        entry_p = float(t.get("avgEntryPrice", 0))
+        exit_p = float(t.get("avgExitPrice", 0))
+        exit_val = float(t.get("cumExitValue", qty * exit_p))
+        total_volume += exit_val
+        side = "BUY" if t.get("side") == "Buy" else "SELL"
+        fee = float(t.get("openFee", 0)) + float(t.get("closeFee", 0))
+        updated_time = int(t.get("updatedTime", time.time() * 1000))
+        dt_str = datetime.datetime.fromtimestamp(updated_time / 1000).strftime("%d/%m/%Y %H:%M:%S")
 
-        if side == "BUY":
-            total_buy_vol += exec_val
-        else:
-            total_sell_vol += exec_val
-
-        ts = int(t.get("execTime", time.time() * 1000))
         trades.append({
             "order_id": t.get("orderId", ""),
             "symbol": t.get("symbol", ""),
             "side": side,
-            "amount": exec_qty,
-            "price": exec_price,
-            "quote_qty": round(exec_val, 2),
-            "fee": exec_fee,
+            "amount": qty,
+            "price": exit_p,
+            "price_entry": entry_p,
+            "quote_qty": round(exit_val, 2),
+            "fee": round(fee, 4),
             "pnl": round(pnl, 4),
             "currency": "USDT",
             "mode": "live_bybit",
-            "time": ts,
-            "datetime": datetime.datetime.fromtimestamp(ts / 1000).strftime("%d/%m/%Y %H:%M:%S")
+            "time": updated_time,
+            "datetime": dt_str
         })
 
     summary = {
         "total_trades": len(trades),
-        "total_buy_volume_usdt": round(total_buy_vol, 2),
-        "total_sell_volume_usdt": round(total_sell_vol, 2),
+        "total_volume_usdt": round(total_volume, 2),
+        "total_buy_volume_usdt": round(total_volume, 2),
+        "total_sell_volume_usdt": round(total_volume, 2),
         "total_realized_profit_usdt": round(total_realized_pnl, 4),
+        "total_realized_profit": round(total_realized_pnl, 4),
+        "total_realized_profit_idr": round(total_realized_pnl * 15500, 0),
+        "currency": "USDT",
         "mode": "live_bybit"
     }
     return {"status": "success", "history": trades, "summary": summary}
