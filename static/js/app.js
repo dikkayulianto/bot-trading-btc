@@ -154,6 +154,19 @@ async function fetchStatus() {
             }
         }
 
+        const btnSync = document.getElementById('btn-sync-wallet');
+        if (btnSync) {
+            if (isBybit) {
+                btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Posisi Bybit';
+                btnSync.title = 'Sinkronkan posisi aktif dari akun Bybit Futures V5';
+            } else if (isLiveMode) {
+                btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Aset Indodax';
+                btnSync.title = 'Sinkronkan koin yang ada di dompet Indodax ke tabel posisi bot';
+            } else {
+                btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Posisi';
+            }
+        }
+
         if (thProfit) {
             thProfit.innerText = isLiveMode ? 'Profit (IDR)' : 'Profit ($ USDT)';
         }
@@ -639,9 +652,14 @@ async function closePosition(ticket) {
 
 async function syncWallet() {
     const btn = document.getElementById('btn-sync-wallet');
+    const isBybit = (currentTradingMode === 'live_bybit');
+    const isLiveIndodax = (currentTradingMode === 'live_indodax');
+    const defaultLabel = isBybit ? 'Sinkronkan Posisi Bybit' : (isLiveIndodax ? 'Sinkronkan Aset Indodax' : 'Sinkronkan Posisi');
+
     if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyinkronkan...';
     try {
-        const res = await fetch('/api/indodax/sync-wallet', { method: 'POST' });
+        const endpoint = isBybit ? '/api/bybit/sync-wallet' : '/api/indodax/sync-wallet';
+        const res = await fetch(endpoint, { method: 'POST' });
         const data = await res.json();
         if (data.status === 'success') {
             await fetchStatus();
@@ -651,21 +669,24 @@ async function syncWallet() {
     } catch (err) {
         alert('Error sinkronisasi: ' + err);
     } finally {
-        if (btn) btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Aset Indodax';
+        if (btn) btn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i> ${defaultLabel}`;
     }
 }
 
 async function closeAllPositions() {
+    const isBybit = (currentTradingMode === 'live_bybit');
     const tabTitle = document.getElementById('positions-tab-title');
     const isLive = tabTitle && tabTitle.innerText.includes('Indodax');
-    const msg = isLive 
-        ? 'PERINGATAN: Apakah Anda yakin ingin MENJUAL dan menutup SEMUA posisi aset Indodax di harga pasar sekarang?' 
-        : 'Tutup SEMUA posisi paper trading sekarang?';
+    const msg = isBybit
+        ? 'PERINGATAN: Apakah Anda yakin ingin MENUTUP SEMUA posisi aktif Bybit Futures di harga pasar saat ini?'
+        : (isLive 
+            ? 'PERINGATAN: Apakah Anda yakin ingin MENJUAL dan menutup SEMUA posisi aset Indodax di harga pasar sekarang?' 
+            : 'Tutup SEMUA posisi paper trading sekarang?');
     if (!confirm(msg)) return;
     try {
         const res = await fetch('/api/positions/close-all', { method: 'POST' });
         const data = await res.json();
-        fetchStatus();
+        await fetchStatus();
     } catch (err) {
         alert('Gagal menutup semua posisi: ' + err);
     }

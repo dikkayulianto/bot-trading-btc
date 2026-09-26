@@ -536,7 +536,9 @@ def close_paper_position(ticket):
                 sym = pos.get("symbol", "")
                 side = pos.get("type", "BUY")
                 amount = float(pos.get("amount", 0.0))
-                close_bybit_position(sym, side, amount, cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
+                ok = close_bybit_position(sym, side, amount, cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
+                if not ok:
+                    return False
             elif is_live_indodax:
                 sym = pos.get("symbol", "")
                 coin = sym.replace("IDR", "").replace("USDT", "")
@@ -829,17 +831,42 @@ def execute_indodax_order(symbol, side, price, quantity, order_type="LIMIT", api
 
 BYBIT_BASE_URL = "https://api.bybit-global.com"
 _bybit_wallet_cache = {}
+_bybit_time_offset = 0
+_bybit_time_last_sync = 0
 
-def _bybit_request(method, endpoint, params=None, body=None, api_key=None, secret_key=None):
+def sync_bybit_server_time(force=False):
+    global _bybit_time_offset, _bybit_time_last_sync
+    now = time.time()
+    if not force and _bybit_time_last_sync and (now - _bybit_time_last_sync < 300):
+        return _bybit_time_offset
+    try:
+        t0 = time.time() * 1000
+        res = requests.get(f"{BYBIT_BASE_URL}/v5/market/time", timeout=5, verify=False).json()
+        t1 = time.time() * 1000
+        if res.get("retCode") == 0:
+            server_ms = int(res["result"]["timeNano"]) // 1000000
+            rtt = (t1 - t0) / 2
+            local_ms = t1 - rtt
+            _bybit_time_offset = int(local_ms - server_ms)
+            _bybit_time_last_sync = now
+            logging.info(f"[BYBIT TIME SYNC] Bybit server time synced. Offset: {_bybit_time_offset}ms")
+    except Exception as e:
+        logging.warning(f"[BYBIT TIME SYNC] Gagal sinkronisasi waktu Bybit: {e}")
+    return _bybit_time_offset
+
+def _bybit_request(method, endpoint, params=None, body=None, api_key=None, secret_key=None, retry_on_time_error=True):
     cfg = _load_app_config()
     k = api_key or cfg.get("bybit_api_key")
     s = secret_key or cfg.get("bybit_api_secret")
     if not k or not s:
         return {"retCode": -1, "retMsg": "Bybit API Key / Secret belum diatur."}
 
+    if not _bybit_time_last_sync:
+        sync_bybit_server_time()
+
     url = f"{BYBIT_BASE_URL}{endpoint}"
-    ts = str(int(time.time() * 1000))
-    recv_window = "5000"
+    ts = str(int(time.time() * 1000) - _bybit_time_offset)
+    recv_window = "20000"
 
     query_str = ""
     if params:
@@ -866,7 +893,12 @@ def _bybit_request(method, endpoint, params=None, body=None, api_key=None, secre
             res = requests.post(url, headers=headers, data=body_json, timeout=10, verify=False)
         else:
             res = requests.get(url, headers=headers, timeout=10, verify=False)
-        return res.json()
+        data = res.json()
+        if data.get("retCode") == 10002 and retry_on_time_error:
+            logging.warning("[BYBIT TIME DRIFT] Terdeteksi perbedaan waktu dengan server Bybit. Menyelaraskan ulang waktu...")
+            sync_bybit_server_time(force=True)
+            return _bybit_request(method, endpoint, params, body, api_key, secret_key, retry_on_time_error=False)
+        return data
     except Exception as e:
         logging.error(f"[BYBIT HTTP EXCEPTION] {endpoint}: {e}")
         return {"retCode": -1, "retMsg": str(e)}
@@ -907,7 +939,8 @@ def get_bybit_positions(category="linear", symbol=None, api_key=None, secret_key
     res = _bybit_request("GET", "/v5/position/list", params=params, api_key=api_key, secret_key=secret_key)
     if res.get("retCode") == 0:
         return res.get("result", {}).get("list", [])
-    return []
+    logging.error(f"[BYBIT POSITIONS ERROR] retCode={res.get('retCode')}: {res.get('retMsg')}")
+    return None
 
 def set_bybit_leverage(symbol, leverage=5, api_key=None, secret_key=None):
     body = {
@@ -1029,6 +1062,8 @@ def sync_bybit_positions():
         return paper_portfolio.get("positions", [])
 
     raw_pos = get_bybit_positions(api_key=k, secret_key=s)
+    if raw_pos is None:
+        return paper_portfolio.get("positions", [])
     mapped = []
     for p in raw_pos:
         size = float(p.get("size", 0))
