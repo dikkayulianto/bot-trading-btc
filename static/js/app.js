@@ -1,12 +1,17 @@
 let pollTimer = null;
-let selectedSymbol = 'BTCUSDT';
+let selectedSymbol = 'XRPUSDT';
 let renderedSymbols = '';
+let renderedChartSymbolsKey = '';
 let currentTradingMode = 'paper';
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchStatus();
     fetchTradeHistory();
     pollTimer = setInterval(fetchStatus, 3000);
+    // Initialize default charts on page load
+    initSingleTvWidget('XRPUSDT', 'tv_chart_XRPUSDT');
+    setTimeout(() => initSingleTvWidget('ADAUSDT', 'tv_chart_ADAUSDT'), 200);
+    renderedChartSymbolsKey = 'XRPUSDT,ADAUSDT';
 });
 
 function getTradingViewSymbol(sym) {
@@ -16,9 +21,70 @@ function getTradingViewSymbol(sym) {
     return 'KUCOIN:' + coin + 'USDT';
 }
 
+function initSingleTvWidget(symbol, containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (typeof TradingView !== 'undefined' && TradingView.widget) {
+        new TradingView.widget({
+            "autosize": true,
+            "symbol": getTradingViewSymbol(symbol),
+            "interval": "5",
+            "timezone": "Asia/Jakarta",
+            "theme": "dark",
+            "style": "1",
+            "locale": "id",
+            "enable_publishing": false,
+            "hide_side_toolbar": false,
+            "allow_symbol_change": true,
+            "container_id": containerId
+        });
+    } else {
+        setTimeout(() => initSingleTvWidget(symbol, containerId), 250);
+    }
+}
+
+function renderAllCharts(symbols) {
+    if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+        symbols = ['XRPUSDT', 'ADAUSDT'];
+    }
+    const key = symbols.join(',');
+    if (key === renderedChartSymbolsKey) return;
+    renderedChartSymbolsKey = key;
+
+    const wrapper = document.getElementById('live-charts-wrapper');
+    if (!wrapper) return;
+
+    wrapper.innerHTML = '';
+    symbols.forEach((sym, idx) => {
+        const clean = sym.toUpperCase().replace('/', '').replace('-', '');
+        const card = document.createElement('div');
+        card.className = 'card-pro mb-2';
+        card.id = `card-chart-${clean}`;
+        card.innerHTML = `
+            <div class="card-header-pro d-flex justify-content-between align-items-center py-1 px-3">
+                <span class="text-emerald d-flex align-items-center gap-2" style="font-size: 0.78rem;">
+                    <i class="bi bi-graph-up text-emerald"></i> LIVE CHART ${idx + 1} • <strong class="text-light font-mono">${clean}</strong>
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-dark border border-secondary text-secondary px-2 py-0" style="font-size: 0.65rem;">KuCoin 5m</span>
+                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.65rem;" onclick="selectCoin('${clean}')" title="Fokuskan HUD & Analisis AI ke ${clean}">
+                        <i class="bi bi-crosshair me-1"></i>Fokuskan
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0 chart-container-box">
+                <div class="tradingview-widget-container" style="height:100%;width:100%">
+                    <div id="tv_chart_${clean}" style="height:100%;width:100%"></div>
+                </div>
+            </div>
+        `;
+        wrapper.appendChild(card);
+        setTimeout(() => initSingleTvWidget(clean, `tv_chart_${clean}`), 100 + (idx * 200));
+    });
+}
+
 function selectCoin(sym) {
     selectedSymbol = sym.toUpperCase().replace('/', '').replace('-', '');
-    const tvSym = getTradingViewSymbol(selectedSymbol);
     const baseCoin = selectedSymbol.replace('IDR', '').replace('USDT', '');
     
     // Update active coin pill UI
@@ -30,13 +96,14 @@ function selectCoin(sym) {
         }
     });
 
-    // Sync Chart Dropdown and TradingView Widget
-    const chartSelect = document.getElementById('select-chart-symbol');
-    if (chartSelect) {
-        chartSelect.value = tvSym;
-    }
-    if (typeof updateChartSymbol === 'function') {
-        updateChartSymbol(tvSym);
+    // Subtle highlight on the selected chart card
+    const targetCard = document.getElementById(`card-chart-${selectedSymbol}`);
+    if (targetCard) {
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        targetCard.style.borderColor = 'var(--accent-cyan)';
+        setTimeout(() => {
+            targetCard.style.borderColor = '';
+        }, 1500);
     }
 
     // Immediately fetch updated HUD & AI for selected coin
@@ -263,9 +330,10 @@ async function fetchStatus() {
         }
 
 
-        // 4. Render Active Coin Pills
+        // 4. Render Active Coin Pills & Multi-Charts
         if (data.config && data.config.symbols) {
             renderCoinPills(data.config.symbols);
+            renderAllCharts(data.config.symbols);
         }
 
         // 5. GainzAlgo V2 Signal HUD for Selected Coin

@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <!-- Custom Cyberpunk Pro CSS -->
     <link rel="stylesheet" href="/static/css/style.css?v={{ cache_bust }}">
+    <!-- TradingView TV.js -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
 </head>
 <body>
     <!-- Top Navbar -->
@@ -239,59 +241,48 @@
                 </div>
             </div>
 
-            <!-- Right Side: TradingView Live Chart & Nav Tabs -->
+            <!-- Right Side: TradingView Live Charts (Stacked) & Nav Tabs -->
             <div class="col-lg-7">
-                <!-- Live TradingView Chart Card -->
-                <div class="card-pro mb-2">
-                    <div class="card-header-pro d-flex justify-content-between align-items-center">
-                        <span class="text-emerald d-flex align-items-center gap-2">
-                            <i class="bi bi-graph-up"></i> LIVE CRYPTO CHART
-                        </span>
-                        <select id="select-chart-symbol" class="form-select form-select-sm bg-dark text-light border-secondary rounded-pill px-3 py-0" style="width: auto; font-size: 0.75rem;" onchange="updateChartSymbol(this.value)">
-                            <option value="KUCOIN:BTCUSDT">BTC/USDT (KuCoin)</option>
-                            <option value="KUCOIN:ETHUSDT">ETH/USDT (KuCoin)</option>
-                            <option value="KUCOIN:SOLUSDT">SOL/USDT (KuCoin)</option>
-                            <option value="KUCOIN:BNBUSDT">BNB/USDT (KuCoin)</option>
-                            <option value="KUCOIN:XRPUSDT">XRP/USDT (KuCoin)</option>
-                            <option value="KUCOIN:ADAUSDT">ADA/USDT (KuCoin)</option>
-                        </select>
-                    </div>
-                    <div class="card-body p-0 chart-container-box">
-                        <!-- TradingView Widget BEGIN -->
-                        <div class="tradingview-widget-container" style="height:100%;width:100%">
-                            <div id="tradingview_crypto_chart" style="height:100%;width:100%"></div>
-                            <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                            <script type="text/javascript">
-                                function getSafeChartSymbol(sym) {
-                                    if (!sym) return "KUCOIN:BTCUSDT";
-                                    let clean = sym.toUpperCase().replace("/", "").replace("-", "").replace("KUCOIN:", "");
-                                    let coin = clean.replace("IDR", "").replace("USDT", "");
-                                    return "KUCOIN:" + coin + "USDT";
-                                }
-
-                                function initTradingViewChart(symbolName) {
-                                    const safeSymbol = getSafeChartSymbol(symbolName);
-                                    new TradingView.widget({
-                                        "autosize": true,
-                                        "symbol": safeSymbol,
-                                        "interval": "5",
-                                        "timezone": "Asia/Jakarta",
-                                        "theme": "dark",
-                                        "style": "1",
-                                        "locale": "id",
-                                        "enable_publishing": false,
-                                        "hide_side_toolbar": false,
-                                        "allow_symbol_change": true,
-                                        "container_id": "tradingview_crypto_chart"
-                                    });
-                                }
-                                window.addEventListener('DOMContentLoaded', () => initTradingViewChart('KUCOIN:BTCUSDT'));
-                                function updateChartSymbol(sym) {
-                                    initTradingViewChart(sym);
-                                }
-                            </script>
+                <!-- Stacked Live Crypto Charts (Atas - Bawah) -->
+                <div id="live-charts-wrapper">
+                    <!-- Chart 1: XRPUSDT (Top) -->
+                    <div class="card-pro mb-2" id="card-chart-XRPUSDT">
+                        <div class="card-header-pro d-flex justify-content-between align-items-center py-1 px-3">
+                            <span class="text-emerald d-flex align-items-center gap-2" style="font-size: 0.78rem;">
+                                <i class="bi bi-graph-up text-emerald"></i> LIVE CHART • <strong class="text-light font-mono">XRPUSDT</strong>
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-dark border border-secondary text-secondary px-2 py-0" style="font-size: 0.65rem;">KuCoin 5m</span>
+                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.65rem;" onclick="selectCoin('XRPUSDT')" title="Fokuskan HUD & Analisis AI ke XRPUSDT">
+                                    <i class="bi bi-crosshair me-1"></i>Fokuskan
+                                </button>
+                            </div>
                         </div>
-                        <!-- TradingView Widget END -->
+                        <div class="card-body p-0 chart-container-box">
+                            <div class="tradingview-widget-container" style="height:100%;width:100%">
+                                <div id="tv_chart_XRPUSDT" style="height:100%;width:100%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: ADAUSDT (Bottom) -->
+                    <div class="card-pro mb-2" id="card-chart-ADAUSDT">
+                        <div class="card-header-pro d-flex justify-content-between align-items-center py-1 px-3">
+                            <span class="text-emerald d-flex align-items-center gap-2" style="font-size: 0.78rem;">
+                                <i class="bi bi-graph-up text-emerald"></i> LIVE CHART • <strong class="text-light font-mono">ADAUSDT</strong>
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-dark border border-secondary text-secondary px-2 py-0" style="font-size: 0.65rem;">KuCoin 5m</span>
+                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.65rem;" onclick="selectCoin('ADAUSDT')" title="Fokuskan HUD & Analisis AI ke ADAUSDT">
+                                    <i class="bi bi-crosshair me-1"></i>Fokuskan
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0 chart-container-box">
+                            <div class="tradingview-widget-container" style="height:100%;width:100%">
+                                <div id="tv_chart_ADAUSDT" style="height:100%;width:100%"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
