@@ -44,7 +44,7 @@
             <!-- Metric 1: Account Balance -->
             <div class="col-6 col-lg-3">
                 <div class="kpi-card">
-                    <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
                         <div class="kpi-icon bg-success-subtle text-success border border-success">
                             <i class="bi bi-wallet2"></i>
                         </div>
@@ -60,7 +60,7 @@
             <!-- Metric 2: Floating PnL & Equity -->
             <div class="col-6 col-lg-3">
                 <div class="kpi-card">
-                    <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
                         <div class="kpi-icon bg-info-subtle text-info border border-info">
                             <i class="bi bi-graph-up-arrow"></i>
                         </div>
@@ -76,7 +76,7 @@
             <!-- Metric 3: Exchanges & Mode -->
             <div class="col-6 col-lg-3">
                 <div class="kpi-card">
-                    <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
                         <div class="kpi-icon bg-warning-subtle text-warning border border-warning" id="indodax-kpi-icon">
                             <i class="bi bi-wallet2 text-warning"></i>
                         </div>
@@ -99,12 +99,12 @@
             <!-- Metric 4: Bot Control Actions -->
             <div class="col-6 col-lg-3">
                 <div class="kpi-card d-flex flex-column justify-content-center">
-                    <div class="kpi-label mb-2">QUICK ACTIONS</div>
+                    <div class="kpi-label mb-1">QUICK ACTIONS</div>
                     <div class="d-flex gap-2">
-                        <button id="btn-start" class="btn btn-start-pro flex-fill py-2 rounded-3" onclick="startBot()">
+                        <button id="btn-start" class="btn btn-start-pro flex-fill py-1 rounded-3" onclick="startBot()">
                             <i class="bi bi-play-fill me-1"></i> START BOT
                         </button>
-                        <button id="btn-stop" class="btn btn-stop-pro flex-fill py-2 rounded-3" onclick="stopBot()">
+                        <button id="btn-stop" class="btn btn-stop-pro flex-fill py-1 rounded-3" onclick="stopBot()">
                             <i class="bi bi-stop-fill me-1"></i> STOP
                         </button>
                     </div>
@@ -231,7 +231,7 @@
                                 </div>
                             </div>
 
-                            <div id="ai-analysis-text" class="terminal-box text-light style-ai-html" style="max-height: 140px; overflow-y: auto;">
+                            <div id="ai-analysis-text" class="terminal-box text-light style-ai-html" style="max-height: 95px; overflow-y: auto;">
                                 Klik tombol <strong>Analisis Sekarang</strong> untuk menjalankan model Groq AI pada pasangan koin pilihan Anda.
                             </div>
                         </div>
@@ -256,7 +256,7 @@
                             <option value="KUCOIN:ADAUSDT">ADA/USDT (KuCoin)</option>
                         </select>
                     </div>
-                    <div class="card-body p-0" style="height: 330px;">
+                    <div class="card-body p-0 chart-container-box">
                         <!-- TradingView Widget BEGIN -->
                         <div class="tradingview-widget-container" style="height:100%;width:100%">
                             <div id="tradingview_crypto_chart" style="height:100%;width:100%"></div>

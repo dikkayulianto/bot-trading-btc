@@ -128,8 +128,8 @@ label.text-muted {
 .kpi-card {
     position: relative;
     overflow: hidden;
-    padding: 0.7rem 0.9rem;
-    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 9px;
     background: linear-gradient(145deg, #131a28, #0e1420);
     border: 1px solid var(--border-card);
     transition: all 0.2s ease;
@@ -142,27 +142,27 @@ label.text-muted {
 }
 
 .kpi-icon {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
 }
 
 .kpi-label {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.5px;
     margin-bottom: 0.1rem;
 }
 
 .kpi-value {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: 800;
     letter-spacing: -0.3px;
     line-height: 1.2;
@@ -368,6 +368,7 @@ label.text-muted {
     letter-spacing: 0.6px;
     border-bottom: 1px solid var(--border-card);
     padding: 0.45rem 0.65rem;
+    white-space: nowrap;
 }
 
 .table-pro td {
@@ -376,6 +377,7 @@ label.text-muted {
     padding: 0.45rem 0.65rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     vertical-align: middle;
+    white-space: nowrap;
 }
 
 .table-pro tbody tr:hover td {
@@ -513,4 +515,111 @@ label.text-muted {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--accent-emerald);
+}
+
+/* Chart Container Sizing (Desktop 100vh Fit & Mobile Scalable) */
+.chart-container-box {
+    height: 270px;
+    width: 100%;
+}
+
+/* Tablet & Smaller Screens (< 992px) */
+@media (max-width: 991.98px) {
+    .chart-container-box {
+        height: 250px;
+    }
+    
+    .nav-pills-pro {
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+    }
+
+    #coin-pills-container {
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+    }
+}
+
+/* Mobile Friendly Smartphones (< 768px) */
+@media (max-width: 768px) {
+    html {
+        font-size: 12.5px;
+    }
+
+    body {
+        overflow-x: hidden;
+    }
+
+    .container-fluid {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    .brand-title {
+        font-size: 0.95rem;
+    }
+
+    .brand-subtitle {
+        font-size: 0.58rem;
+    }
+
+    .kpi-card {
+        padding: 0.45rem 0.6rem;
+    }
+
+    .kpi-icon {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        font-size: 0.95rem;
+    }
+
+    .kpi-label {
+        font-size: 0.6rem;
+    }
+
+    .kpi-value {
+        font-size: 0.95rem;
+    }
+
+    .kpi-subnote {
+        font-size: 0.62rem;
+    }
+
+    .hud-card {
+        padding: 0.5rem !important;
+    }
+
+    .hud-param-box {
+        padding: 0.35rem 0.25rem;
+    }
+
+    .hud-param-label {
+        font-size: 0.6rem;
+    }
+
+    .hud-param-val {
+        font-size: 0.85rem;
+    }
+
+    .chart-container-box {
+        height: 240px;
+    }
+
+    .table-pro td, .table-pro th {
+        padding: 0.35rem 0.5rem;
+        font-size: 0.68rem;
+    }
+
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .card-header-pro {
+        padding: 0.45rem 0.7rem;
+    }
 }
