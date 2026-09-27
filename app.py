@@ -217,7 +217,7 @@ def api_close_position():
 @app.route("/api/positions/close-all", methods=["POST"])
 def api_close_all_positions():
     count = exchange_api.close_all_paper_positions()
-    return jsonify({"status": "success", "message": f"Berhasil menutup semua ({count}) posisi paper trading."})
+    return jsonify({"status": "success", "message": f"Berhasil menutup semua ({count}) posisi transaksi."})
 
 if __name__ == "__main__":
     ensure_bot_thread()

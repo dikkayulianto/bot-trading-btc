@@ -1,6 +1,7 @@
 let pollTimer = null;
 let selectedSymbol = 'BTCUSDT';
 let renderedSymbols = '';
+let currentTradingMode = 'paper';
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchStatus();
@@ -125,6 +126,7 @@ async function fetchStatus() {
 
         // 3. Mode Badge & Tab Header
         const mode = data.config ? (data.config.trading_mode || 'paper') : 'paper';
+        currentTradingMode = mode;
         const isBybit = (mode === 'live_bybit');
         const isLiveMode = (mode === 'live_indodax');
         const modeBadge = document.getElementById('trading-mode-badge');
@@ -632,6 +634,7 @@ function renderPositions(positions) {
 }
 
 async function closePosition(ticket) {
+    if (!confirm(`Apakah Anda yakin ingin menutup posisi #${ticket} di harga pasar saat ini?`)) return;
     try {
         const res = await fetch('/api/positions/close', {
             method: 'POST',
@@ -639,7 +642,12 @@ async function closePosition(ticket) {
             body: JSON.stringify({ ticket: ticket })
         });
         const data = await res.json();
-        fetchStatus();
+        if (data.status === 'success') {
+            alert(data.message || 'Posisi berhasil ditutup.');
+        } else {
+            alert('Gagal menutup posisi: ' + (data.message || JSON.stringify(data)));
+        }
+        await fetchStatus();
     } catch (err) {
         alert('Gagal menutup posisi: ' + err);
     }
@@ -647,7 +655,7 @@ async function closePosition(ticket) {
 
 async function syncWallet() {
     const btn = document.getElementById('btn-sync-wallet');
-    const isBybit = (currentTradingMode === 'live_bybit');
+    const isBybit = (typeof currentTradingMode !== 'undefined' && currentTradingMode === 'live_bybit');
 
     if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sinkron...';
     try {
@@ -667,7 +675,8 @@ async function syncWallet() {
 }
 
 async function closeAllPositions() {
-    const isBybit = (currentTradingMode === 'live_bybit');
+    const btn = document.getElementById('btn-close-all');
+    const isBybit = (typeof currentTradingMode !== 'undefined' && currentTradingMode === 'live_bybit');
     const tabTitle = document.getElementById('positions-tab-title');
     const isLive = tabTitle && tabTitle.innerText.includes('Indodax');
     const msg = isBybit
@@ -676,12 +685,28 @@ async function closeAllPositions() {
             ? 'PERINGATAN: Apakah Anda yakin ingin MENJUAL dan menutup SEMUA posisi aset Indodax di harga pasar sekarang?' 
             : 'Tutup SEMUA posisi paper trading sekarang?');
     if (!confirm(msg)) return;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menutup...';
+    }
+
     try {
         const res = await fetch('/api/positions/close-all', { method: 'POST' });
         const data = await res.json();
+        if (data.status === 'success') {
+            alert(data.message || 'Semua posisi berhasil ditutup.');
+        } else {
+            alert('Gagal menutup semua posisi: ' + (data.message || JSON.stringify(data)));
+        }
         await fetchStatus();
     } catch (err) {
         alert('Gagal menutup semua posisi: ' + err);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Tutup Semua';
+        }
     }
 }
 

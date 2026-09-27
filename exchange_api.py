@@ -535,10 +535,11 @@ def close_paper_position(ticket):
             if is_live_bybit:
                 sym = pos.get("symbol", "")
                 side = pos.get("type", "BUY")
-                amount = float(pos.get("amount", 0.0))
+                amount = pos.get("amount", 0.0)
                 ok = close_bybit_position(sym, side, amount, cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
                 if not ok:
                     return False
+                record_paper_history(pos, pos.get("price_current", pos.get("price_open")), profit, reason="MANUAL CLOSE BYBIT")
             elif is_live_indodax:
                 sym = pos.get("symbol", "")
                 coin = sym.replace("IDR", "").replace("USDT", "")
@@ -559,11 +560,14 @@ def close_all_paper_positions():
     global paper_portfolio
     cfg = _load_app_config()
     current_mode = cfg.get("trading_mode", "paper")
-    total_closed = len(paper_portfolio["positions"])
+    total_closed = len(paper_portfolio.get("positions", []))
     if current_mode == "live_bybit":
-        close_all_bybit_positions(cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
+        for pos in list(paper_portfolio.get("positions", [])):
+            record_paper_history(pos, pos.get("price_current", pos.get("price_open")), float(pos.get("profit", 0.0)), reason="CLOSE ALL BYBIT")
+        bybit_closed = close_all_bybit_positions(cfg.get("bybit_api_key"), cfg.get("bybit_api_secret"))
+        total_closed = max(total_closed, bybit_closed)
     else:
-        for pos in list(paper_portfolio["positions"]):
+        for pos in list(paper_portfolio.get("positions", [])):
             if pos.get("mode") == "live_indodax":
                 sym = pos.get("symbol", "")
                 coin = sym.replace("IDR", "").replace("USDT", "")
@@ -1026,20 +1030,39 @@ def execute_bybit_order(symbol, side, target_margin_usdt=2.0, leverage=5, tp_pri
         logging.error(f"[BYBIT ORDER ERROR] {symbol} {bybit_side}: {err_msg}")
         return {"status": "error", "message": err_msg, "code": res.get("retCode")}
 
+def format_bybit_close_qty(symbol, qty):
+    s = str(symbol).upper()
+    try:
+        f_qty = float(qty)
+    except Exception:
+        return str(qty)
+    if "ADA" in s or "DOGE" in s:
+        return str(int(round(f_qty)))
+    elif "XRP" in s:
+        return str(round(f_qty, 1))
+    elif "SOL" in s:
+        return str(round(f_qty, 2))
+    elif "BTC" in s or "ETH" in s:
+        return str(round(f_qty, 3))
+    if f_qty == int(f_qty):
+        return str(int(f_qty))
+    return str(f_qty)
+
 def close_bybit_position(symbol, side, qty, api_key=None, secret_key=None):
     close_side = "Sell" if str(side).upper() == "BUY" else "Buy"
+    qty_str = format_bybit_close_qty(symbol, qty)
     body = {
         "category": "linear",
         "symbol": symbol,
         "side": close_side,
         "orderType": "Market",
-        "qty": str(qty),
+        "qty": qty_str,
         "reduceOnly": True,
         "positionIdx": 0
     }
     res = _bybit_request("POST", "/v5/order/create", body=body, api_key=api_key, secret_key=secret_key)
     if res.get("retCode") == 0:
-        logging.info(f"[BYBIT MANUAL CLOSE] Sukses menutup posisi {symbol} ({qty} {close_side})")
+        logging.info(f"[BYBIT MANUAL CLOSE] Sukses menutup posisi {symbol} ({qty_str} {close_side})")
         return True
     logging.error(f"[BYBIT CLOSE ERROR] {symbol}: {res.get('retMsg')}")
     return False
@@ -1047,12 +1070,15 @@ def close_bybit_position(symbol, side, qty, api_key=None, secret_key=None):
 def close_all_bybit_positions(api_key=None, secret_key=None):
     raw_pos = get_bybit_positions(api_key=api_key, secret_key=secret_key)
     closed = 0
+    if not raw_pos:
+        return 0
     for p in raw_pos:
         size = float(p.get("size", 0))
         if size > 0:
             sym = p.get("symbol")
             side = p.get("side")
-            if close_bybit_position(sym, side, size, api_key=api_key, secret_key=secret_key):
+            size_val = p.get("size")
+            if close_bybit_position(sym, side, size_val, api_key=api_key, secret_key=secret_key):
                 closed += 1
     return closed
 
