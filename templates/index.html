@@ -246,14 +246,18 @@
                 <!-- Stacked Live Crypto Charts (Atas - Bawah) -->
                 <div id="live-charts-wrapper">
                     <!-- Chart 1: XRPUSDT (Top) -->
-                    <div class="card-pro mb-2" id="card-chart-XRPUSDT">
+                    <div class="card-pro mb-2" id="card-chart-XRPUSDT" style="border-left: 4px solid #38bdf8;">
                         <div class="card-header-pro d-flex justify-content-between align-items-center py-1 px-3">
-                            <span class="text-emerald d-flex align-items-center gap-2" style="font-size: 0.78rem;">
-                                <i class="bi bi-graph-up text-emerald"></i> LIVE CHART • <strong class="text-light font-mono">XRPUSDT</strong>
-                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary text-light px-2 py-1" style="font-size: 0.75rem; font-weight: 700;">
+                                    <i class="bi bi-currency-exchange me-1"></i>Ripple (XRP)
+                                </span>
+                                <span class="text-light font-mono fw-bold" style="font-size: 0.82rem;">XRPUSDT</span>
+                                <span id="header-price-XRPUSDT" class="badge bg-dark border border-info text-info font-mono" style="font-size: 0.72rem;">~$1.5180</span>
+                            </div>
                             <div class="d-flex align-items-center gap-2">
                                 <span class="badge bg-dark border border-secondary text-secondary px-2 py-0" style="font-size: 0.65rem;">KuCoin 5m</span>
-                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.65rem;" onclick="selectCoin('XRPUSDT')" title="Fokuskan HUD & Analisis AI ke XRPUSDT">
+                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.68rem;" onclick="selectCoin('XRPUSDT')" title="Fokuskan HUD & Analisis AI ke XRPUSDT">
                                     <i class="bi bi-crosshair me-1"></i>Fokuskan
                                 </button>
                             </div>
@@ -266,14 +270,18 @@
                     </div>
 
                     <!-- Chart 2: ADAUSDT (Bottom) -->
-                    <div class="card-pro mb-2" id="card-chart-ADAUSDT">
+                    <div class="card-pro mb-2" id="card-chart-ADAUSDT" style="border-left: 4px solid #10b981;">
                         <div class="card-header-pro d-flex justify-content-between align-items-center py-1 px-3">
-                            <span class="text-emerald d-flex align-items-center gap-2" style="font-size: 0.78rem;">
-                                <i class="bi bi-graph-up text-emerald"></i> LIVE CHART • <strong class="text-light font-mono">ADAUSDT</strong>
-                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-success text-light px-2 py-1" style="font-size: 0.75rem; font-weight: 700;">
+                                    <i class="bi bi-coin me-1"></i>Cardano (ADA)
+                                </span>
+                                <span class="text-light font-mono fw-bold" style="font-size: 0.82rem;">ADAUSDT</span>
+                                <span id="header-price-ADAUSDT" class="badge bg-dark border border-emerald text-emerald font-mono" style="font-size: 0.72rem;">~$0.2524</span>
+                            </div>
                             <div class="d-flex align-items-center gap-2">
                                 <span class="badge bg-dark border border-secondary text-secondary px-2 py-0" style="font-size: 0.65rem;">KuCoin 5m</span>
-                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.65rem;" onclick="selectCoin('ADAUSDT')" title="Fokuskan HUD & Analisis AI ke ADAUSDT">
+                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.68rem;" onclick="selectCoin('ADAUSDT')" title="Fokuskan HUD & Analisis AI ke ADAUSDT">
                                     <i class="bi bi-crosshair me-1"></i>Fokuskan
                                 </button>
                             </div>

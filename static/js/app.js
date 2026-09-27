@@ -57,17 +57,29 @@ function renderAllCharts(symbols) {
     wrapper.innerHTML = '';
     symbols.forEach((sym, idx) => {
         const clean = sym.toUpperCase().replace('/', '').replace('-', '');
+        const isXrp = clean.includes('XRP');
+        const isAda = clean.includes('ADA');
+        const coinName = isXrp ? 'Ripple (XRP)' : (isAda ? 'Cardano (ADA)' : (clean.includes('BTC') ? 'Bitcoin (BTC)' : (clean.includes('ETH') ? 'Ethereum (ETH)' : (clean.includes('SOL') ? 'Solana (SOL)' : clean))));
+        const badgeClass = isXrp ? 'bg-primary' : (isAda ? 'bg-success' : 'bg-info');
+        const borderCol = isXrp ? '#38bdf8' : (isAda ? '#10b981' : '#f59e0b');
+        const priceBadgeClass = isXrp ? 'text-info border-info' : (isAda ? 'text-emerald border-emerald' : 'text-warning border-warning');
+
         const card = document.createElement('div');
         card.className = 'card-pro mb-2';
         card.id = `card-chart-${clean}`;
+        card.style.borderLeft = `4px solid ${borderCol}`;
         card.innerHTML = `
             <div class="card-header-pro d-flex justify-content-between align-items-center py-1 px-3">
-                <span class="text-emerald d-flex align-items-center gap-2" style="font-size: 0.78rem;">
-                    <i class="bi bi-graph-up text-emerald"></i> LIVE CHART ${idx + 1} • <strong class="text-light font-mono">${clean}</strong>
-                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge ${badgeClass} text-light px-2 py-1" style="font-size: 0.75rem; font-weight: 700;">
+                        ${coinName}
+                    </span>
+                    <span class="text-light font-mono fw-bold" style="font-size: 0.82rem;">${clean}</span>
+                    <span id="header-price-${clean}" class="badge bg-dark border ${priceBadgeClass} font-mono" style="font-size: 0.72rem;">Memuat harga...</span>
+                </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-dark border border-secondary text-secondary px-2 py-0" style="font-size: 0.65rem;">KuCoin 5m</span>
-                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.65rem;" onclick="selectCoin('${clean}')" title="Fokuskan HUD & Analisis AI ke ${clean}">
+                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-pill" style="font-size: 0.68rem;" onclick="selectCoin('${clean}')" title="Fokuskan HUD & Analisis AI ke ${clean}">
                         <i class="bi bi-crosshair me-1"></i>Fokuskan
                     </button>
                 </div>
@@ -334,6 +346,22 @@ async function fetchStatus() {
         if (data.config && data.config.symbols) {
             renderCoinPills(data.config.symbols);
             renderAllCharts(data.config.symbols);
+        }
+
+        // 4b. Update Live Price in Chart Card Headers
+        if (data.account && data.account.positions) {
+            data.account.positions.forEach(pos => {
+                const el = document.getElementById(`header-price-${pos.symbol}`);
+                if (el && pos.price_current) {
+                    el.innerText = `$${Number(pos.price_current).toFixed(4)}`;
+                }
+            });
+        }
+        if (data.gainzalgo_v2 && data.gainzalgo_v2.symbol && data.gainzalgo_v2.entry_price) {
+            const el = document.getElementById(`header-price-${data.gainzalgo_v2.symbol}`);
+            if (el && (!el.innerText || el.innerText.includes('Memuat') || el.innerText.includes('~'))) {
+                el.innerText = `$${Number(data.gainzalgo_v2.entry_price).toFixed(4)}`;
+            }
         }
 
         // 5. GainzAlgo V2 Signal HUD for Selected Coin
