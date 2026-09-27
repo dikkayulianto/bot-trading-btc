@@ -296,35 +296,35 @@
 
                 <!-- Tabs: Paper Positions, System Logs, Configuration -->
                 <div class="card-pro">
-                    <div class="card-header-pro d-flex justify-content-between align-items-center p-2">
-                        <ul class="nav nav-pills nav-pills-pro gap-1" id="botTabs" role="tablist">
+                    <div class="card-header-pro d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2">
+                        <ul class="nav nav-pills nav-pills-pro gap-1 flex-nowrap" id="botTabs" role="tablist">
                             <li class="nav-item">
-                                <button class="nav-link active" id="positions-tab" type="button" onclick="switchTab('positions')">
-                                    <i class="bi bi-list-task me-1"></i> <span id="positions-tab-title">Posisi Paper Trading</span>
+                                <button class="nav-link active text-nowrap" id="positions-tab" type="button" onclick="switchTab('positions')">
+                                    <i class="bi bi-list-task me-1"></i> <span id="positions-tab-title">Posisi Aktif</span>
                                 </button>
                             </li>
                             <li class="nav-item">
-                                <button class="nav-link" id="history-tab" type="button" onclick="switchTab('history')">
-                                    <i class="bi bi-clock-history me-1"></i> Riwayat Perdagangan
+                                <button class="nav-link text-nowrap" id="history-tab" type="button" onclick="switchTab('history')">
+                                    <i class="bi bi-clock-history me-1"></i> Riwayat
                                 </button>
                             </li>
                             <li class="nav-item">
-                                <button class="nav-link" id="logs-tab" type="button" onclick="switchTab('logs')">
-                                    <i class="bi bi-terminal me-1"></i> System Logs
+                                <button class="nav-link text-nowrap" id="logs-tab" type="button" onclick="switchTab('logs')">
+                                    <i class="bi bi-terminal me-1"></i> Logs
                                 </button>
                             </li>
                             <li class="nav-item">
-                                <button class="nav-link" id="config-tab" type="button" onclick="switchTab('config')">
-                                    <i class="bi bi-gear me-1"></i> Konfigurasi Bot
+                                <button class="nav-link text-nowrap" id="config-tab" type="button" onclick="switchTab('config')">
+                                    <i class="bi bi-gear me-1"></i> Konfigurasi
                                 </button>
                             </li>
                         </ul>
-                        <div class="d-flex align-items-center gap-1">
-                            <button id="btn-sync-wallet" class="btn btn-sm btn-outline-info rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="syncWallet()" title="Sinkronkan posisi aktif exchange ke tabel bot">
-                                <i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Posisi
+                        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                            <button id="btn-sync-wallet" class="btn btn-sm btn-outline-info rounded-pill px-2 py-1 text-nowrap" style="font-size: 0.72rem; white-space: nowrap;" onclick="syncWallet()" title="Sinkronkan posisi aktif exchange">
+                                <i class="bi bi-arrow-repeat me-1"></i> Sinkron
                             </button>
-                            <button id="btn-close-all" class="btn btn-sm btn-close-all-pro rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="closeAllPositions()">
-                                <i class="bi bi-x-circle me-1"></i> Tutup Semua Posisi
+                            <button id="btn-close-all" class="btn btn-sm btn-close-all-pro rounded-pill px-2 py-1 text-nowrap" style="font-size: 0.72rem; white-space: nowrap;" onclick="closeAllPositions()" title="Tutup semua posisi aktif">
+                                <i class="bi bi-x-circle me-1"></i> Tutup Semua
                             </button>
                         </div>
                     </div>

@@ -146,25 +146,18 @@ async function fetchStatus() {
 
         if (tabTitle) {
             if (isBybit) {
-                tabTitle.innerHTML = '<span class="text-warning fw-bold"><i class="bi bi-lightning-charge me-1"></i>Posisi Bybit Futures (Real 2-Arah)</span>';
+                tabTitle.innerHTML = '<span class="text-warning fw-bold">Posisi Aktif <span class="badge bg-warning text-dark px-1 py-0 ms-1" style="font-size:0.62rem;">Bybit</span></span>';
             } else if (isLiveMode) {
-                tabTitle.innerHTML = '<span class="text-danger fw-bold"><i class="bi bi-broadcast me-1"></i>Posisi Trading Indodax (Real)</span>';
+                tabTitle.innerHTML = '<span class="text-danger fw-bold">Posisi Aktif <span class="badge bg-danger text-light px-1 py-0 ms-1" style="font-size:0.62rem;">Indodax</span></span>';
             } else {
-                tabTitle.innerText = 'Posisi Paper Trading';
+                tabTitle.innerText = 'Posisi Paper';
             }
         }
 
         const btnSync = document.getElementById('btn-sync-wallet');
         if (btnSync) {
-            if (isBybit) {
-                btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Posisi Bybit';
-                btnSync.title = 'Sinkronkan posisi aktif dari akun Bybit Futures V5';
-            } else if (isLiveMode) {
-                btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Aset Indodax';
-                btnSync.title = 'Sinkronkan koin yang ada di dompet Indodax ke tabel posisi bot';
-            } else {
-                btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkronkan Posisi';
-            }
+            btnSync.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkron';
+            btnSync.title = isBybit ? 'Sinkronkan posisi aktif dari akun Bybit Futures V5' : 'Sinkronkan posisi dompet';
         }
 
         if (thProfit) {
@@ -611,9 +604,11 @@ function renderPositions(positions) {
         const slFmt = isIndodax ? (p.sl ? `Rp ${Number(p.sl).toLocaleString('id-ID')}` : '--') : (p.sl ? `$${p.sl}` : '--');
         const tpFmt = isIndodax ? (p.tp ? `Rp ${Number(p.tp).toLocaleString('id-ID')}` : '--') : (p.tp ? `$${p.tp}` : '--');
 
+        const cleanTicket = String(p.ticket || '').replace(/^bybit-/, '').replace(/^live-/, '');
+
         html += `
             <tr>
-                <td class="font-mono text-muted">#${p.ticket}</td>
+                <td class="font-mono text-muted small">#${cleanTicket}</td>
                 <td>
                     <a href="javascript:void(0)" onclick="selectCoin('${p.symbol}')" class="text-light text-decoration-none fw-bold hover-cyan" title="Klik untuk ganti Analisis & Chart ke koin ini">
                         ${p.symbol} <i class="bi bi-box-arrow-up-right text-info ms-1" style="font-size:0.7rem;"></i>
@@ -653,10 +648,8 @@ async function closePosition(ticket) {
 async function syncWallet() {
     const btn = document.getElementById('btn-sync-wallet');
     const isBybit = (currentTradingMode === 'live_bybit');
-    const isLiveIndodax = (currentTradingMode === 'live_indodax');
-    const defaultLabel = isBybit ? 'Sinkronkan Posisi Bybit' : (isLiveIndodax ? 'Sinkronkan Aset Indodax' : 'Sinkronkan Posisi');
 
-    if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyinkronkan...';
+    if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sinkron...';
     try {
         const endpoint = isBybit ? '/api/bybit/sync-wallet' : '/api/indodax/sync-wallet';
         const res = await fetch(endpoint, { method: 'POST' });
@@ -669,7 +662,7 @@ async function syncWallet() {
     } catch (err) {
         alert('Error sinkronisasi: ' + err);
     } finally {
-        if (btn) btn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i> ${defaultLabel}`;
+        if (btn) btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sinkron';
     }
 }
 
