@@ -10,27 +10,27 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <!-- Custom Cyberpunk Pro CSS -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ cache_bust }}">
 </head>
 <body>
     <!-- Top Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-pro sticky-top py-2">
-        <div class="container-fluid px-3">
+    <nav class="navbar navbar-expand-lg navbar-pro sticky-top py-1">
+        <div class="container-fluid px-2">
             <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-                <div class="bg-dark p-2 rounded-3 border border-warning shadow-sm d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
-                    <i class="bi bi-currency-bitcoin fs-4 text-warning"></i>
+                <div class="bg-dark p-1 rounded-2 border border-warning shadow-sm d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                    <i class="bi bi-currency-bitcoin fs-5 text-warning"></i>
                 </div>
                 <div>
-                    <span class="brand-title fs-5 d-block leading-tight">CRYPTO BOT PRO</span>
+                    <span class="brand-title fs-6 fw-bold d-block leading-tight">CRYPTO BOT PRO</span>
                     <span class="brand-subtitle">PORT 5007 • MULTI-EXCHANGE REST API</span>
                 </div>
             </a>
             
             <div class="d-flex align-items-center gap-2">
-                <span id="license-badge" class="badge bg-success-subtle text-success border border-success px-3 py-2 rounded-pill">
+                <span id="license-badge" class="badge bg-success-subtle text-success border border-success px-2 py-1 rounded-pill" style="font-size: 0.72rem;">
                     <i class="bi bi-shield-check me-1"></i> License Valid
                 </span>
-                <span id="bot-status-badge" class="badge bg-dark border border-danger text-rose px-3 py-2 rounded-pill d-flex align-items-center gap-2">
+                <span id="bot-status-badge" class="badge bg-dark border border-danger text-rose px-2 py-1 rounded-pill d-flex align-items-center gap-1" style="font-size: 0.72rem;">
                     <span class="pulse-dot pulse-dot-stopped"></span> <strong class="text-rose">STOPPED</strong>
                 </span>
             </div>
@@ -38,9 +38,9 @@
     </nav>
 
     <!-- Main Container -->
-    <div class="container-fluid py-3 px-3">
+    <div class="container-fluid py-2 px-2">
         <!-- Top KPI Metric Cards Row -->
-        <div class="row g-3 mb-3">
+        <div class="row g-2 mb-2">
             <!-- Metric 1: Account Balance -->
             <div class="col-6 col-lg-3">
                 <div class="kpi-card">
@@ -113,31 +113,31 @@
         </div>
 
         <!-- Active Coin Switcher Bar -->
-        <div class="card-pro p-2 mb-3">
+        <div class="card-pro p-2 mb-2">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="text-label d-flex align-items-center" style="font-size: 0.75rem;">
+                    <span class="text-label d-flex align-items-center" style="font-size: 0.72rem;">
                         <i class="bi bi-coin text-warning me-1"></i> PILIH KOIN ANALISIS:
                     </span>
                     <div id="coin-pills-container" class="d-flex align-items-center gap-1 flex-wrap">
                         <!-- Dynamic Coin Pills: BTC, ETH, SOL, BNB, XRP -->
                     </div>
                 </div>
-                <div class="small text-secondary" style="font-size: 0.72rem;">
+                <div class="small text-secondary" style="font-size: 0.68rem;">
                     <i class="bi bi-arrow-left-right text-info me-1"></i> Klik koin untuk sinkronisasi HUD, Chart & Analisis AI
                 </div>
             </div>
         </div>
 
-        <div class="row g-3">
+        <div class="row g-2">
             <!-- Left Side: GainzAlgo V2 Signal HUD & Groq AI Analyst -->
             <div class="col-lg-5">
                 <!-- GainzAlgo V2 Hero Signal HUD Card -->
-                <div class="card-pro hud-card mb-3 p-3">
-                    <div class="d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 pb-2 mb-3">
+                <div class="card-pro hud-card mb-2 p-2">
+                    <div class="d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 pb-1 mb-2">
                         <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-radar text-emerald fs-5"></i>
-                            <span class="fw-bold text-light" style="letter-spacing: 0.5px;">GAINZALGO V2 ALPHA HUD</span>
+                            <i class="bi bi-radar text-emerald fs-6"></i>
+                            <span class="fw-bold text-light" style="letter-spacing: 0.5px; font-size: 0.85rem;">GAINZALGO V2 ALPHA HUD</span>
                         </div>
                         <span class="badge bg-dark border border-cyan text-info px-3 py-1 rounded-pill" id="hud-symbol-tf">BTCUSDT (5m)</span>
                     </div>
@@ -185,30 +185,30 @@
                 </div>
 
                 <!-- Groq AI Market Analyst Card -->
-                <div class="card-pro mb-3">
+                <div class="card-pro mb-2">
                     <div class="card-header-pro d-flex justify-content-between align-items-center">
                         <span class="text-cyan d-flex align-items-center gap-2">
-                            <i class="bi bi-robot"></i> GROQ AI ANALYST • <span id="ai-card-symbol" class="text-warning font-mono">BTCUSDT</span>
+                            <i class="bi bi-robot"></i> GROQ AI ANALYST • <span id="ai-card-symbol" class="text-warning font-mono">XRPUSDT</span>
                         </span>
-                        <button id="btn-run-ai" class="btn btn-sm btn-outline-info rounded-pill px-3" onclick="runAiAnalysis()">
-                            <i class="bi bi-arrow-repeat me-1"></i> <span id="ai-btn-label">Analisis BTCUSDT Sekarang</span>
+                        <button id="btn-run-ai" class="btn btn-sm btn-outline-info rounded-pill px-3 py-0" style="font-size: 0.72rem;" onclick="runAiAnalysis()">
+                            <i class="bi bi-arrow-repeat me-1"></i> <span id="ai-btn-label">Analisis XRPUSDT Sekarang</span>
                         </button>
                     </div>
-                    <div class="card-body p-3">
-                        <div id="ai-loading" class="text-center py-4 d-none">
-                            <div class="spinner-border text-info mb-2" role="status"></div>
-                            <div class="small text-secondary">Groq AI sedang menganalisis indikator Crypto...</div>
+                    <div class="card-body p-2">
+                        <div id="ai-loading" class="text-center py-3 d-none">
+                            <div class="spinner-border spinner-border-sm text-info mb-1" role="status"></div>
+                            <div class="small text-secondary" style="font-size: 0.72rem;">Groq AI sedang menganalisis indikator Crypto...</div>
                         </div>
                         <div id="ai-result-content">
-                            <div class="d-flex align-items-center justify-content-between mb-3 bg-dark p-2 rounded-3 border border-secondary border-opacity-25">
+                            <div class="d-flex align-items-center justify-content-between mb-2 bg-dark p-2 rounded-2 border border-secondary border-opacity-25">
                                 <div>
-                                    <span class="text-label d-block" style="font-size: 0.72rem;">REKOMENDASI AI</span>
-                                    <h5 id="ai-rec" class="fw-bold text-cyan mb-0">Belum Ada Analisis</h5>
+                                    <span class="text-label d-block" style="font-size: 0.65rem;">REKOMENDASI AI</span>
+                                    <h6 id="ai-rec" class="fw-bold text-cyan mb-0">Belum Ada Analisis</h6>
                                 </div>
-                                <div class="text-end" style="width: 140px;">
+                                <div class="text-end" style="width: 120px;">
                                     <div class="d-flex justify-content-between small mb-1">
-                                        <span class="text-label" style="font-size: 0.72rem;">KEYAKINAN</span>
-                                        <span id="ai-conf" class="fw-bold text-cyan" style="font-size: 0.75rem;">--%</span>
+                                        <span class="text-label" style="font-size: 0.65rem;">KEYAKINAN</span>
+                                        <span id="ai-conf" class="fw-bold text-cyan" style="font-size: 0.72rem;">--%</span>
                                     </div>
                                     <div class="progress-pro">
                                         <div id="ai-conf-bar" class="progress-bar-cyan h-100" style="width: 0%;"></div>
@@ -216,22 +216,22 @@
                                 </div>
                             </div>
 
-                            <div class="row g-2 mb-3">
+                            <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <div class="chip-box text-center">
                                         <span class="chip-label">SUPPORT LEVEL</span>
-                                        <strong id="ai-sup" class="text-emerald font-mono fs-5">$--</strong>
+                                        <strong id="ai-sup" class="text-emerald font-mono fs-6">$--</strong>
                                     </div>
                                 </div>
                                 <div class="col-6">
                                     <div class="chip-box text-center">
                                         <span class="chip-label">RESISTANCE LEVEL</span>
-                                        <strong id="ai-res" class="text-rose font-mono fs-5">$--</strong>
+                                        <strong id="ai-res" class="text-rose font-mono fs-6">$--</strong>
                                     </div>
                                 </div>
                             </div>
 
-                            <div id="ai-analysis-text" class="terminal-box text-light style-ai-html" style="max-height: 200px; overflow-y: auto;">
+                            <div id="ai-analysis-text" class="terminal-box text-light style-ai-html" style="max-height: 140px; overflow-y: auto;">
                                 Klik tombol <strong>Analisis Sekarang</strong> untuk menjalankan model Groq AI pada pasangan koin pilihan Anda.
                             </div>
                         </div>
@@ -242,12 +242,12 @@
             <!-- Right Side: TradingView Live Chart & Nav Tabs -->
             <div class="col-lg-7">
                 <!-- Live TradingView Chart Card -->
-                <div class="card-pro mb-3">
+                <div class="card-pro mb-2">
                     <div class="card-header-pro d-flex justify-content-between align-items-center">
                         <span class="text-emerald d-flex align-items-center gap-2">
                             <i class="bi bi-graph-up"></i> LIVE CRYPTO CHART
                         </span>
-                        <select id="select-chart-symbol" class="form-select form-select-sm bg-dark text-light border-secondary rounded-pill px-3" style="width: auto;" onchange="updateChartSymbol(this.value)">
+                        <select id="select-chart-symbol" class="form-select form-select-sm bg-dark text-light border-secondary rounded-pill px-3 py-0" style="width: auto; font-size: 0.75rem;" onchange="updateChartSymbol(this.value)">
                             <option value="KUCOIN:BTCUSDT">BTC/USDT (KuCoin)</option>
                             <option value="KUCOIN:ETHUSDT">ETH/USDT (KuCoin)</option>
                             <option value="KUCOIN:SOLUSDT">SOL/USDT (KuCoin)</option>
@@ -255,7 +255,7 @@
                             <option value="KUCOIN:XRPUSDT">XRP/USDT (KuCoin)</option>
                         </select>
                     </div>
-                    <div class="card-body p-0" style="height: 400px;">
+                    <div class="card-body p-0" style="height: 330px;">
                         <!-- TradingView Widget BEGIN -->
                         <div class="tradingview-widget-container" style="height:100%;width:100%">
                             <div id="tradingview_crypto_chart" style="height:100%;width:100%"></div>
@@ -328,7 +328,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="card-body tab-content p-3" id="botTabsContent">
+                    <div class="card-body tab-content p-2" id="botTabsContent">
                         <!-- Tab 1: Positions Table -->
                         <div class="tab-pane fade show active" id="positions-pane" role="tabpanel" style="display: block;">
                             <div class="table-responsive">
