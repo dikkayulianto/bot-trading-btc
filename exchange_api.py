@@ -961,6 +961,8 @@ def format_bybit_qty(symbol, notional_usdt, price):
         return str(max(0.1, round(raw_qty, 1)))
     elif "DOGE" in s:
         return str(max(1, int(round(raw_qty))))
+    elif "ADA" in s:
+        return str(max(1, int(round(raw_qty))))
     elif "SOL" in s:
         return str(max(0.1, round(raw_qty, 1)))
     elif "SUI" in s:
